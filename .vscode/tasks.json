@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Lancer Streamlit",
+			"type": "shell",
+			"command": "C:/Users/Jitey/AppData/Local/Programs/Python/Python313/python.exe",
+			"args": [
+				"-m",
+				"streamlit",
+				"run",
+				"main.py"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
