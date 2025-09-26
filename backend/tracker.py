@@ -8,19 +8,17 @@ from notion_client.errors import RequestTimeoutError
 from utility import *
 import pandas as pd
 from datetime import datetime as dt
-from dataclasses import dataclass
-import json, glob
+import json
 from typing import Generator
 # |-----------Module pour le debug---------|
 from icecream import ic
-from inspect import currentframe, getframeinfo
 from mylib.timer import timer_performance, cls_timer_performance
 
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 workspace = Path(__file__).resolve().parent
-load_dotenv(dotenv_path=f'{parent_folder}/.env')
+load_dotenv(dotenv_path=f'{workspace}/.env')
 
 
 
@@ -80,23 +78,6 @@ class ExoBDD():
 
 
 
-class LiftOfLegend():
-    def __init__(self) -> None:
-        self.client = Client(auth=getenv("NOTION_TOKEN_LOL"))
-        self.ligue = None
-    
-    
-    @property
-    def ligue(self):
-        return self.__ligue
-    
-    @ligue.setter
-    def ligue(self, none):
-        with open('data/ligue.json', 'r') as f:
-            self.__ligue = json.load(f)
-
-
-
 
 class ExerciceNotion():
     def __init__(self, id: str) ->None:
@@ -120,23 +101,16 @@ class Serie():
         self.date: str = None
         self.num: int = int(JsonFile.safe_get(self._data, "Sets.title.0.plain_text"))
         self.reps: int = int(JsonFile.safe_get(self._data, "Reps.number"))
-        self.poids: float = None
+        self.poids: float = float(JsonFile.safe_get(self._data, "Poids.number"))
         
     @property
     def date(self)->str:
         return self.__date
     @date.setter
     def date(self, date):
-        date_txt = JsonFile.safe_get(self._data, "Date .date.start")
-        self.__date = dt.fromisoformat(date_txt)
+        date_str = JsonFile.safe_get(self._data, "Date .date.start")
+        self.__date = dt.fromisoformat(date_str)
         
-    @property
-    def poids(self)->float:
-        return self.__poids
-    @poids.setter
-    def poids(self, data):
-        self.__poids = float(JsonFile.safe_get(self._data, "Poids.number"))
-    
 
     def __repr__(self):
         return f"Série {self.num}: {self.reps} reps - {self.poids} kg"
@@ -149,91 +123,77 @@ class Serie():
 
 
 
-class Exercice():
-    def __init__(self, id: str) ->None:
-        self.data = client_notion.pages.retrieve(id)['properties']
-        ic(self.data)
-        self.name: str = RELATION_EXO[id]
-        self.date: str = None
-        self.series: list[Serie] = data
+# class Exercice():
+#     def __init__(self, id: str) ->None:
+#         self.data = client_notion.pages.retrieve(id)['properties']
+#         ic(self.data)
+#         self.name: str = RELATION_EXO[id]
+#         self.date: str = None
+#         self.series: list[Serie] = data
     
     
-    @property
-    def date(self)->str:
-        return self.__date
-    @date.setter
-    def date(self, date):
-        date_txt = JsonFile.safe_get(self.data, "Date.date.start")
-        self.__date = dt.fromisoformat(date_txt)
+#     @property
+#     def date(self)->str:
+#         return self.__date
+#     @date.setter
+#     def date(self, date):
+#         date_str = JsonFile.safe_get(self.data, "Date.date.start")
+#         self.__date = dt.fromisoformat(date_str)
     
     
-    @property
-    def series(self):
-        return self.__series
+#     @property
+#     def series(self):
+#         return self.__series
     
-    @series.setter
-    def series(self, data: dict)->list[Serie]:
-        if self.date:
-            self.__series = [
-                Serie(1,JsonFile.safe_get(data, "Série 1.rich_text.0.plain_text").split('x')),
-                Serie(2,JsonFile.safe_get(data, "Série 2.rich_text.0.plain_text").split('x')),
-                Serie(3,JsonFile.safe_get(data, "Série 3.rich_text.0.plain_text").split('x'))
-            ]
+#     @series.setter
+#     def series(self, data: dict)->list[Serie]:
+#         if self.date:
+#             self.__series = [
+#                 Serie(1,JsonFile.safe_get(data, "Série 1.rich_text.0.plain_text").split('x')),
+#                 Serie(2,JsonFile.safe_get(data, "Série 2.rich_text.0.plain_text").split('x')),
+#                 Serie(3,JsonFile.safe_get(data, "Série 3.rich_text.0.plain_text").split('x'))
+#             ]
     
         
-    def to_dict(self)->dict:
-        return {
-            'Name': self.name,
-            'Date': self.date,
-            'Serie': self.series
-        }
+#     def to_dict(self)->dict:
+#         return {
+#             'Name': self.name,
+#             'Date': self.date,
+#             'Serie': self.series
+#         }
     
-    def __repr__(self) -> str:
-        return f"Exercice: {self.name} - Date: {self.date}\n" + \
-               '\n'.join([str(serie) for serie in self.series])
+#     def __repr__(self) -> str:
+#         return f"Exercice: {self.name} - Date: {self.date}\n" + \
+#                '\n'.join([str(serie) for serie in self.series])
 
 
 
 
 class Seance():
     def __init__(self, data: dict) -> None:
-        self.data = data
-        self.name: str = None
-        self.body_part: str = None
+        self._data = data
+        self.name: str = JsonFile.safe_get(self._data, "Name.title.0.plain_text")
+        self.body_part: str = JsonFile.safe_get(self._data, "Body Part.select.name")
         self.date: str = None
         self.content: dict[str,ExerciceNotion] = {}
         
-    
-    @property
-    def name(self) -> str:
-        return self.__name
-    @name.setter
-    def name(self, data: dict):
-        self.__name = JsonFile.safe_get(self.data, "Name.title.0.plain_text")
     
     @property
     def date(self) -> dt:
         return self.__date
     @date.setter
     def date(self, data: dict):
-        date_txt = JsonFile.safe_get(self.data, "Date.date.start")
-        self.__date = dt.fromisoformat(date_txt)
-    
-    @property    
-    def body_part(self) -> str:
-        return self.__body_part
-    @body_part.setter
-    def body_part(self, data):
-        self.__body_part = JsonFile.safe_get(self.data, "Body Part.select.name")
-    
+        date_str = JsonFile.safe_get(self._data, "Date.date.start")
+        self.__date = dt.fromisoformat(date_str)
+
     @property    
     def content(self):
         return self.__content
     @content.setter
     def content(self, data):
-        exos = map(lambda x: ExerciceNotion(x['id']), JsonFile.safe_get(self.data, "Exercises.relation"))
-        series = [Serie(e['id']) for e in JsonFile.safe_get(self.data, "Workout Exercises.relation")]
-
+        exos = map(lambda x: ExerciceNotion(x['id']), JsonFile.safe_get(self._data, "Exercises.relation"))
+        series = [Serie(e['id']) for e in JsonFile.safe_get(self._data, "Workout Exercises.relation")]
+        
         self.__content = {
             exo.name: list(filter(lambda serie: serie.exo.name == exo.name, series)) for exo in exos
         }
@@ -249,11 +209,12 @@ class Seance():
 
 class MyApp():
     def __init__(self) -> None:
-        self.carnet = self.open_ZtH()
+        self._carnet = self.open_workouts()
+        self.seances = self.get_seance()
         
     
              
-    def open_ZtH(self) -> Generator[dict,any,any]:
+    def open_workouts(self) -> Generator[dict,any,any]:
         """Yields all the children of the page "ZtH Carnet de bord"
 
         Yields:
@@ -263,89 +224,11 @@ class MyApp():
 
 
     def get_seance(self)->Generator[Seance,any,any]:
-        for page in self.carnet:
+        for page in self._carnet:
             yield Seance(page['properties'])
 
 
-    @timer_performance
-    def check_seance(self):
-        try:
-            # for seance in self.get_seance():
-                seance = next(self.get_seance())
-                if seance.date:
-                    exos = [{'id': self.relation_id[exo]} for exo in seance.content]
-                    self.add_seance_to_notion(seance.name, seance.date, exos)
-        except RequestTimeoutError:
-            pass
-        
 
-    def get_exo(self)->Generator[tuple[str,ExerciceNotion],any,any]:
-        for seance in self.get_seance():
-            if date := seance.date:
-                yield from seance.content.items()
-                    
-
-    @timer_performance
-    def check_exo(self):
-        try:
-            for exo_name, exo in self.get_exo():
-                ic(exo_name)
-                seance_url = self.find_seance(exo.date)
-                if ic(seance_url):
-                    for serie in exo.series:
-                        self.add_exo_to_notion(exo.date, 
-                                            self.relation_id[exo_name],
-                                            serie)
-                        ic(serie.poids)
-        except RequestTimeoutError:
-            pass
-
-        
-    def find_seance(self, date):
-        try:
-            return self.seances[date]
-        except KeyError:
-            pass
-
-    
-    def add_seance_to_notion(self, seance: str, date: dt|str, exos: list)->dict:
-        request = {
-            'icon': {'external': {'url': 'https://www.notion.so/icons/calendar_gray.svg'},
-                                  'type': 'external'},
-            'parent': {'database_id': '1e522945-c40e-4c41-8d58-54942b5d4910',
-                       'type': 'database_id'},
-            'properties': {
-                'Date': {'date': {'start': str(date),
-                                    'time_zone': None}},
-                'Exercises': {'relation': exos},
-                'Name': {'title': [{'text': {'content': seance,}}]},
-                'Body Part': {'select': {'name': 'Lower Body' if seance=='Lower' else 'Upper Body'}}
-            }
-        }
-
-        return self.client.pages.create(**request)
-
-    
-    def add_exo_to_notion(self, date: dt|str, exo_id: str, serie: Serie)->None:
-        request = {
-            'parent': {'database_id': 'ab85d2fd-5afc-4f9b-8f87-b326d7f238e8',
-                            'type': 'database_id'},
-                'properties': {
-                    'Date ': {'date': {'start': str(date),
-                                        'time_zone': None}},
-                    'Exercise': {'relation': [{'id': exo_id}]},
-                    'Completed': {'checkbox': True},
-                    'Poids': {'number': serie.poids},
-                    'Reps': {'number': serie.reps},
-                    'Sets': {'title': [{'text': {'content': str(serie.num)}}]},
-                    'Weekly Split Schedule': {'relation': [{'id': self.find_seance(date)}]}
-            }
-        }
-        
-        return self.client.pages.create(**request)
-    
-    
-    
     
 
 if __name__=='__main__':
@@ -353,3 +236,7 @@ if __name__=='__main__':
     app = MyApp()
     
     app.get_seance()
+    
+    seance = next(app.seances)
+    ic(seance)
+    ic(seance.content)
