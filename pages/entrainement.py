@@ -1,6 +1,15 @@
 import streamlit as st
 import datetime
 import plotly.graph_objects as go
+from backend.notion import NontionAPI, Seance, EXO_BDD
+
+from icecream import ic
+import logging
+from typing import Generator, Iterable
+
+
+workouts: Generator[Seance] = NontionAPI().seances
+
 
 st.set_page_config(page_title="Entrainements", page_icon="", layout="centered")
 
@@ -44,7 +53,7 @@ def count_streak(workouts) -> int:
     """
     pass
 
-def weekly_workouts_volume(workouts, week_number) -> float:
+def weekly_workouts_volume(workouts: Iterable[Seance], date: datetime.date) -> int:
     """Calculate the total volume of workouts for a given week.
 
     Args:
@@ -54,8 +63,13 @@ def weekly_workouts_volume(workouts, week_number) -> float:
     Returns:
         float: Total volume of workouts for the week.
     """
-    weekly_workouts = filter(lambda w: get_workout_week(w) == datetime.date.today().isocalendar()[1], [])
-    return sum(w.duration for w in weekly_workouts)
+    weekly_workouts: filter[Seance] = filter(lambda w: w.week_number == date.isocalendar()[1] 
+                                                    and w.date.year == date.year, workouts
+                                        )
+    return sum([w.duration.seconds for w in weekly_workouts])//60
+
+
+
 
 cols = st.columns(2)
 with cols[0]:
@@ -63,25 +77,9 @@ with cols[0]:
     st.write("série actuelle")
 
 with cols[1]:
-    objectif_minutes = 100
-    volume_semaine = weekly_workouts_volume([], datetime.date.today().isocalendar()[1])
+    objectif_minutes = 3*50
+    volume_semaine = weekly_workouts_volume(workouts, datetime.date.today())
+    # volume_semaine = 103
     pourcentage = int((volume_semaine / objectif_minutes) * 100) if objectif_minutes else 0
     pourcentage = min(pourcentage, 100)
-    
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = pourcentage,
-        number = {'suffix': '%'},
-        gauge = {
-            'axis': {'range': [0, 100]},
-            'bar': {'color': 'green'},
-            'bgcolor': "#e0e0e0",
-            'steps': [
-                {'range': [0, 100], 'color': '#e0e0e0'}
-            ],
-        },
-        domain = {'x': [0, 1], 'y': [0, 1]}
-    ))
-    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=200)
-    st.plotly_chart(fig, use_container_width=True)
-    st.write(f"{volume_semaine}/100 min")
+    st.progress(pourcentage, text=f"{volume_semaine}/{objectif_minutes} minutes")

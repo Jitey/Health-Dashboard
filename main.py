@@ -1,13 +1,7 @@
-import os
 from os import sep
 from os.path import join as pjoin
-import glob
 import streamlit as st
-import xml.etree.ElementTree as ET
-from utilities import HealthRecord
-import pandas as pd
-import plotly.express as px
-from mylib import timer
+
 
 from icecream import ic
 import logging
@@ -58,7 +52,6 @@ pages = {
 
 
 
-st.sidebar.title("Navigation")
 pg = st.navigation(pages, position="sidebar")
 
 
