@@ -31,7 +31,7 @@ for i, day in enumerate(days):
 			st.info(f"**{day.strftime('%a')}**\n" + day.strftime('%d/%m'))
    
    
-def get_workout_week(workout) -> int:
+def get_workout_week(workout: Seance) -> int:
     """Return the week number of a workout.
 
     Args:
@@ -40,9 +40,9 @@ def get_workout_week(workout) -> int:
     Returns:
         int: Week number.
     """
-    pass
+    return workout.date.isocalendar()[1]
 
-def count_streak(workouts) -> int:
+def count_streak(workouts: Iterable[Seance]) -> int:
     """Count the number of consecutive weeks with at least one workout.
 
     Args:
@@ -51,7 +51,19 @@ def count_streak(workouts) -> int:
     Returns:
         int: Number of consecutive weeks with at least one workout.
     """
-    pass
+    history = list(workouts)
+    streak_count = 0
+    current_week = datetime.date.today().isocalendar()[1]
+    for workout in history:
+        workout_week = get_workout_week(workout)
+        if workout_week == current_week:
+            streak_count += 1
+            current_week -= 1
+        elif workout_week < current_week:
+            break
+        
+    return streak_count
+    
 
 def weekly_workouts_volume(workouts: Iterable[Seance], date: datetime.date) -> int:
     """Calculate the total volume of workouts for a given week.
@@ -63,7 +75,7 @@ def weekly_workouts_volume(workouts: Iterable[Seance], date: datetime.date) -> i
     Returns:
         float: Total volume of workouts for the week.
     """
-    weekly_workouts: filter[Seance] = filter(lambda w: w.week_number == date.isocalendar()[1] 
+    weekly_workouts: filter[Seance] = filter(lambda w: get_workout_week(w) == date.isocalendar()[1] 
                                                     and w.date.year == date.year, workouts
                                         )
     return sum([w.duration.seconds for w in weekly_workouts])//60
@@ -73,7 +85,7 @@ def weekly_workouts_volume(workouts: Iterable[Seance], date: datetime.date) -> i
 
 cols = st.columns(2)
 with cols[0]:
-    st.write(f"{count_streak([])} Semaines\n")
+    st.write(f"{count_streak(workouts)} Semaines\n")
     st.write("série actuelle")
 
 with cols[1]:

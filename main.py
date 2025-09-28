@@ -21,18 +21,24 @@ class ColoredFormatter(logging.Formatter):
         record.levelname = f"{color}{record.levelname}{self.RESET}"
         return super().format(record)
 
-# Appliquez le gestionnaire personnalisé
-formatter = ColoredFormatter(
+dateformat='%Y-%m-%d %H:%M:%S'
+
+consol_handler = logging.StreamHandler()
+consol_handler.setFormatter(ColoredFormatter(
     fmt='\033[90m\033[1m%(asctime)s\033[0m \033[1m%(levelname)s\033[0m   %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
+    datefmt=dateformat
+))
+file_handler = logging.FileHandler('logs.log')
+file_handler.setFormatter(logging.Formatter(
+    fmt='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt=dateformat
+))
 
 logging.basicConfig(
     level=logging.INFO,
-    handlers=[handler]
+    handlers=[file_handler, consol_handler],
 )
+
 
 
 

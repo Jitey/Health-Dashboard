@@ -2,6 +2,9 @@ ID,Exercice,Date,Série,Reps,Poids,Seance_ID,Exo_ID,Seance_Name,Seance_Body_part
 27b65da8-c60a-80e6-bfd5-c44368dff202,Shoulder Press,2025-09-27 11:32:00+02:00,3,10,45.0,27b65da8-c60a-802b-a931-c39b95618fe6,11665da8-c60a-8005-8deb-c0e94940b317,Upper B,Upper Body,0 days 00:59:00
 27b65da8-c60a-8023-93dd-df333880373f,Shoulder Press,2025-09-27 11:32:00+02:00,2,7,50.0,27b65da8-c60a-802b-a931-c39b95618fe6,11665da8-c60a-8005-8deb-c0e94940b317,Upper B,Upper Body,0 days 00:59:00
 27b65da8-c60a-806e-bec6-e7ffd8751fca,Shoulder Press,2025-09-27 11:32:00+02:00,1,6,54.0,27b65da8-c60a-802b-a931-c39b95618fe6,11665da8-c60a-8005-8deb-c0e94940b317,Upper B,Upper Body,0 days 00:59:00
+27b65da8-c60a-8066-bc78-e74ab394814f,Développé Couché,2025-09-27 11:32:00+02:00,3,7,55.0,27b65da8-c60a-802b-a931-c39b95618fe6,21c84612-7788-431f-a330-ad054349550b,Upper B,Upper Body,0 days 00:59:00
+27b65da8-c60a-80b9-beaf-f5b2d141f29c,Développé Couché,2025-09-27 11:32:00+02:00,2,5,60.0,27b65da8-c60a-802b-a931-c39b95618fe6,21c84612-7788-431f-a330-ad054349550b,Upper B,Upper Body,0 days 00:59:00
+27b65da8-c60a-805e-ae0e-ea2639cae3da,Développé Couché,2025-09-27 11:32:00+02:00,1,2,65.0,27b65da8-c60a-802b-a931-c39b95618fe6,21c84612-7788-431f-a330-ad054349550b,Upper B,Upper Body,0 days 00:59:00
 27b65da8-c60a-8008-8342-cbe9b71dbfda,Tractions Focus Bras,2025-09-27 11:32:00+02:00,3,10,0.0,27b65da8-c60a-802b-a931-c39b95618fe6,022960fa-d1ec-4909-a041-c3687d0d899a,Upper B,Upper Body,0 days 00:59:00
 27b65da8-c60a-80e3-84ba-f2654eaf9f74,Tractions Focus Bras,2025-09-27 11:32:00+02:00,2,10,0.0,27b65da8-c60a-802b-a931-c39b95618fe6,022960fa-d1ec-4909-a041-c3687d0d899a,Upper B,Upper Body,0 days 00:59:00
 27b65da8-c60a-802e-bdd1-fa33905b5a81,Tractions Focus Bras,2025-09-27 11:32:00+02:00,1,12,0.0,27b65da8-c60a-802b-a931-c39b95618fe6,022960fa-d1ec-4909-a041-c3687d0d899a,Upper B,Upper Body,0 days 00:59:00

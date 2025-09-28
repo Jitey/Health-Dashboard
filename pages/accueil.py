@@ -13,6 +13,5 @@ st.info("Bienvenue sur votre tableau de bord santé !")
 
 st.write("Utilisez la barre latérale pour accéder aux différentes pages :")
 st.write("- Accueil")
-st.write("- ECG")
 st.write("- Activités")
 st.write("- Tendances Santé")
