@@ -26,7 +26,8 @@ class ColoredFormatter(logging.Formatter):
 
 def set_consol_handler(logger: logging.Logger, log_format: str, date_format: str):
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(ColoredFormatter(fmt=log_format, datefmt=date_format))
+    # console_handler.setFormatter(ColoredFormatter(fmt=log_format, datefmt=date_format))
+    console_handler.setFormatter(ColoredFormatter(fmt='\033[90m\033[1m%(asctime)s\033[0m [%(levelname)s]   %(message)s', datefmt=date_format))
     logger.addHandler(console_handler)
 
 

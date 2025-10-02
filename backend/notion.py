@@ -20,39 +20,6 @@ logger = setup_logger()
 
 
 
-class ColoredFormatter(logger.Formatter):
-    COLORS = {
-        "DEBUG": "\033[92m",  # Vert
-        "INFO": "\033[94m",   # Bleu
-        "WARNING": "\033[93m",  # Jaune
-        "ERROR": "\033[91m",  # Rouge
-        "CRITICAL": "\033[95m",  # Magenta
-    }
-    RESET = "\033[0m"
-
-    def format(self, record):
-        color = self.COLORS.get(record.levelname, self.RESET)
-        record.levelname = f"{color}{record.levelname}{self.RESET}"
-        return super().format(record)
-
-dateformat='%Y-%m-%d %H:%M:%S'
-
-consol_handler = logger.StreamHandler()
-consol_handler.setFormatter(ColoredFormatter(
-    fmt='\033[90m\033[1m%(asctime)s\033[0m \033[1m%(levelname)s\033[0m   %(message)s',
-    datefmt=dateformat
-))
-file_handler = logger.FileHandler('logs.log')
-file_handler.setFormatter(logger.Formatter(
-    fmt='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt=dateformat
-))
-
-logger.basicConfig(
-    level=logger.INFO,
-    handlers=[file_handler, consol_handler],
-)
-
 
 
 current_folder = Path(__file__).resolve().parent
@@ -207,69 +174,56 @@ class Seance():
 
 class SerieNotion(Serie):
     def __init__(self, id: str) -> None:
+        data = client_notion.pages.retrieve(id)['properties']
         self.id: str = id
-        self._data = client_notion.pages.retrieve(id)['properties']
-        self.exo: ExerciceNotion = ExerciceNotion(JsonFile.safe_get(self._data, "Exercise.relation.0.id"))
-        self.date: str = None
-        self.num: int = int(JsonFile.safe_get(self._data, "Sets.title.0.plain_text"))
-        self.reps: int = int(JsonFile.safe_get(self._data, "Reps.number"))
-        self.poids: float = float(JsonFile.safe_get(self._data, "Poids.number"))
-        self.seance_id: str = JsonFile.safe_get(self._data, "Weekly Split Schedule.relation.0.id")
+        self.exo: ExerciceNotion = ExerciceNotion(JsonFile.safe_get(data, "Exercise.relation.0.id"))
+        self.date: str = self._parse_date(data)
+        self.num: int = int(JsonFile.safe_get(data, "Sets.title.0.plain_text"))
+        self.reps: int = int(JsonFile.safe_get(data, "Reps.number"))
+        self.poids: float = float(JsonFile.safe_get(data, "Poids.number"))
+        self.seance_id: str = JsonFile.safe_get(data, "Weekly Split Schedule.relation.0.id")
 
         
-    @property
-    def date(self)->str:
-        return self.__date
-    @date.setter
-    def date(self, date):
-        date_str = JsonFile.safe_get(self._data, "Date .date.start")
-        self.__date = dt.fromisoformat(date_str)
+    def _parse_date(self, data: dict):
+        date_str = JsonFile.safe_get(data, "Date .date.start")
+        return dt.fromisoformat(date_str)
+
 
 class SeanceNotion(Seance):
     def __init__(self, id: str, data: dict) -> None:
         self.id: str = id
         self.name: str = JsonFile.safe_get(data, "Name.title.0.plain_text")
         self.body_part: str = JsonFile.safe_get(data, "Body Part.select.name")
-        self.date: dt = data
-        self.content: dict[str,list[Serie]] = data
-        self.duration: timedelta = data
+        self.date: dt = self._parse_date(data)
+        self.content: dict[str,list[Serie]] = self._parse_content(data)
+        self.duration: timedelta = self._parse_duration(data)
         
         self.save()
         
     
-    @property
-    def date(self) -> dt:
-        return self.__date
-    @date.setter
-    def date(self, data: dict):
+    def _parse_date(self, data: dict):
         date_str = JsonFile.safe_get(data, "Date.date.start")
-        self.__date = dt.fromisoformat(date_str)
+        return dt.fromisoformat(date_str)
 
-    @property    
-    def content(self):
-        return self.__content
-    @content.setter
-    def content(self, data):
+    def _parse_content(self, data):
         exos = map(lambda x: ExerciceNotion(x['id']), JsonFile.safe_get(data, "Exercises.relation"))
         series = [SerieNotion(e['id']) for e in JsonFile.safe_get(data, "Workout Exercises.relation")]
         
-        self.__content = {
+        return {
             exo.name: list(filter(lambda serie: serie.exo.name == exo.name, series)) for exo in exos
         }
         
-    @property
-    def duration(self) -> float:
-        return self.__duration
-    @duration.setter
-    def duration(self, data):
+    def _parse_duration(self, data):
         try:
             start = self.date
             end_str = JsonFile.safe_get(data, "Date.date.end")
             end = dt.fromisoformat(end_str)
-            self.__duration = end - start
+            return end - start
         except TypeError:
             logger.warning(f"Seance {self.name} - {self.id} has no end date, setting duration to 0.")
-            self.__duration = timedelta(0)
+            return timedelta(0)
+
+
 
 class SerieCSV(Serie):
     def __init__(self, data: pd.Series) -> None:
