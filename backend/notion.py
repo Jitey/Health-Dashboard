@@ -12,12 +12,15 @@ import pandas as pd
 from datetime import datetime as dt, timedelta
 from typing import Generator
 # |-----------Module pour le debug---------|
-import logging
 from icecream import ic
 from mylib.timer import timer_performance
+from logger_config import setup_logger
+
+logger = setup_logger()
 
 
-class ColoredFormatter(logging.Formatter):
+
+class ColoredFormatter(logger.Formatter):
     COLORS = {
         "DEBUG": "\033[92m",  # Vert
         "INFO": "\033[94m",   # Bleu
@@ -34,19 +37,19 @@ class ColoredFormatter(logging.Formatter):
 
 dateformat='%Y-%m-%d %H:%M:%S'
 
-consol_handler = logging.StreamHandler()
+consol_handler = logger.StreamHandler()
 consol_handler.setFormatter(ColoredFormatter(
     fmt='\033[90m\033[1m%(asctime)s\033[0m \033[1m%(levelname)s\033[0m   %(message)s',
     datefmt=dateformat
 ))
-file_handler = logging.FileHandler('logs.log')
-file_handler.setFormatter(logging.Formatter(
+file_handler = logger.FileHandler('logs.log')
+file_handler.setFormatter(logger.Formatter(
     fmt='%(asctime)s - %(levelname)s - %(message)s',
     datefmt=dateformat
 ))
 
-logging.basicConfig(
-    level=logging.INFO,
+logger.basicConfig(
+    level=logger.INFO,
     handlers=[file_handler, consol_handler],
 )
 
@@ -92,7 +95,7 @@ class ExoBDD():
             if id not in relation_exo:
                 relation_id[name] = id
                 relation_exo[id] = name
-                logging.info(f"New exercice added: {name} - {id}")
+                logger.info(f"New exercice added: {name} - {id}")
                 
         return {
             'last_update': dt.now().isoformat(timespec="microseconds"),
@@ -104,14 +107,14 @@ class ExoBDD():
     def sync(self) -> None:
         """Sync the local database with the Notion database if there are changes."""
         if not self.has_change():
-            logging.info("Exercices are up to date.")
+            logger.info("Exercices are up to date.")
             return
         
-        logging.info("Syncing exercices from Notion...")
+        logger.info("Syncing exercices from Notion...")
         db = client_notion.databases.query(self.notion_url)
         
         JsonFile.write(self.fetch(db), f'{current_folder}/exo_bdd')
-        logging.info("Exercices database updated.")
+        logger.info("Exercices database updated.")
 
 
 class ExerciceNotion():
@@ -194,7 +197,7 @@ class Seance():
                     history = pd.concat([history, row], ignore_index=True)
                 
         history.to_csv(pjoin(workspace, 'data', 'history.csv'), index=False)
-        logging.info(f"Saving seance: {self.name} - {self.date.date()}")
+        logger.info(f"Saving seance: {self.name} - {self.date.date()}")
         
     def load(self) -> pd.DataFrame:
         history = pd.read_csv(pjoin(workspace, 'data', 'history.csv'))
@@ -265,7 +268,7 @@ class SeanceNotion(Seance):
             end = dt.fromisoformat(end_str)
             self.__duration = end - start
         except TypeError:
-            logging.warning(f"Seance {self.name} - {self.id} has no end date, setting duration to 0.")
+            logger.warning(f"Seance {self.name} - {self.id} has no end date, setting duration to 0.")
             self.__duration = timedelta(0)
 
 class SerieCSV(Serie):
@@ -338,7 +341,7 @@ class NontionAPI():
     def save_all_seance(self) -> None:
         for seance in self.seances:
             if isinstance(seance, SeanceNotion):
-                logging.info(f"Saving seance: {seance.name} - {seance.date.date()}")
+                logger.info(f"Saving seance: {seance.name} - {seance.date.date()}")
                 seance.save()
 
 

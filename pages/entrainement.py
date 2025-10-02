@@ -4,8 +4,11 @@ import plotly.graph_objects as go
 from backend.notion import NontionAPI, Seance, EXO_BDD
 
 from icecream import ic
-import logging
 from typing import Generator, Iterable
+from logger_config import setup_logger
+
+logger = setup_logger()
+
 
 
 workouts: Generator[Seance] = NontionAPI().seances
