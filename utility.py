@@ -4,6 +4,7 @@ from datetime import datetime
 
 
 class JsonFile:
+    @staticmethod
     def write(content: dict | list, path: str):
         """Sauvegarde des données au format json
 
@@ -14,6 +15,7 @@ class JsonFile:
         with open(f"{path}.json",'w') as f:
             json.dump(content,f,indent=4)
     
+    @staticmethod
     def read(path: str)->dict | list:
         """Lecture des données au format json
 
@@ -26,6 +28,7 @@ class JsonFile:
         with open(f"{path}.json",'r') as f:
             return json.load(f)
     
+    @staticmethod
     def safe_get(data: dict | list, dot_chained_keys: str):
         """Renvoie un élément précis de données au format json
 

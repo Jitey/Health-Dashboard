@@ -8,6 +8,7 @@ from pathlib import Path
 # |-----------Module pour le projet---------|
 from notion_client import Client
 from utility import JsonFile
+from sql import ExoDB
 import pandas as pd
 from datetime import datetime as dt, timedelta
 from typing import Generator
@@ -266,6 +267,7 @@ class SeanceCSV(Seance):
 
 class NontionAPI():
     def __init__(self) -> None:
+        ExoDB().sync_from_notion(client_notion)
         self._carnet = self.open_workouts()
         self.seances = self.get_seance()
 

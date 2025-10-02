@@ -50,7 +50,7 @@ def set_error_handler(logger: logging.Logger, log_format: str, date_format: str)
 
 
 
-def setup_logger(name="ChillBot"):
+def setup_logger(name="ChillBot") -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
     logger.propagate = False
