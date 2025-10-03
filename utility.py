@@ -1,5 +1,4 @@
 import json
-import logging
 from datetime import datetime
 from functools import wraps
 from time import perf_counter, perf_counter_ns, time
@@ -51,10 +50,10 @@ class JsonFile:
             try:
                 data = data[int(key)] if isinstance(data,list) else data[key]
             except (KeyError, TypeError, IndexError, ValueError) as error:
-                logging.error(f"{error.__class__.__name__} {error}")
-                logging.warning(data)
-                logging.warning(keys)
-                logging.warning(key)
+                logger.error(f"{error.__class__.__name__} {error}")
+                logger.warning(data)
+                logger.warning(keys)
+                logger.warning(key)
         return data
 
 
@@ -90,7 +89,7 @@ def timer_performance(func):
     def wrapper(*args,**kwargs):
         start = perf_counter()
         res = func(*args,**kwargs)
-        logging.info(f"{func.__name__}: {perf_counter() - start:.2e}s")
+        logger.info(f"{func.__name__}: {perf_counter() - start:.2e}s")
         return res
     return wrapper
 
@@ -99,6 +98,6 @@ def timer_performance_ns(func):
     def wrapper(*args,**kwargs):
         start = perf_counter_ns()
         res = func(*args,**kwargs)
-        logging.info(f"{func.__name__}: {perf_counter_ns() - start:.2e}ns")
+        logger.info(f"{func.__name__}: {perf_counter_ns() - start:.2e}ns")
         return res
     return wrapper

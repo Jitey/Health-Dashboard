@@ -4,6 +4,8 @@ from os.path import join as pjoin
 from notion_client import Client
 from utility import JsonFile
 from datetime import datetime as dt
+from utility import timer_performance
+from models import Exercice
 from logger_config import setup_logger
 
 from icecream import ic
@@ -67,17 +69,24 @@ def init_db(path: str=DB_PATH):
 
 
 class ExoDB:
-    def __init__(self, db_path=DB_PATH):
+    def __init__(self, db_path=DB_PATH) -> None:
         init_db()
         self.db_path = db_path
 
-    def get_exo_by_name(self, name: str) -> dict:
+    def get_exo_by_name(self, name: str) -> Exercice:
         """Retourne l'exercice par son nom"""
     
-    def get_exo_by_id(self, id: str) -> dict:
+    def get_exo_by_id(self, id: str) -> Exercice:
         """Retourne l'exercice par son ID Notion"""
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+
+            cur.execute("SELECT id, name FROM exercices WHERE id==?", (id,))
+            res = cur.fetchone()
+            return Exercice(*res)
 
     
+    @timer_performance
     def sync_from_notion(self, client_notion: Client, notion_url: str='026420f9e2b44f2bb72560c9775ac355') -> None:
         """Récupère les nouveaux exercices depuis Notion et insère uniquement ceux qui n'existent pas
 
