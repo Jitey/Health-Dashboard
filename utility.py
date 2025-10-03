@@ -1,6 +1,11 @@
 import json
 import logging
 from datetime import datetime
+from functools import wraps
+from time import perf_counter, perf_counter_ns, time
+from logger_config import setup_logger
+
+logger = setup_logger()
 
 
 class JsonFile:
@@ -77,3 +82,23 @@ class HealthRecord:
 
     def __repr__(self):
         return f"HealthRecord(type={self.record_type}, value={self.value}, date={self.date})"
+
+
+
+def timer_performance(func):
+    @wraps(func)
+    def wrapper(*args,**kwargs):
+        start = perf_counter()
+        res = func(*args,**kwargs)
+        logging.info(f"{func.__name__}: {perf_counter() - start:.2e}s")
+        return res
+    return wrapper
+
+def timer_performance_ns(func):
+    @wraps(func)
+    def wrapper(*args,**kwargs):
+        start = perf_counter_ns()
+        res = func(*args,**kwargs)
+        logging.info(f"{func.__name__}: {perf_counter_ns() - start:.2e}ns")
+        return res
+    return wrapper

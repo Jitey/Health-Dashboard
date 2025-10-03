@@ -14,7 +14,7 @@ from datetime import datetime as dt, timedelta
 from typing import Generator
 # |-----------Module pour le debug---------|
 from icecream import ic
-from mylib.timer import timer_performance
+from utility import timer_performance
 from logger_config import setup_logger
 
 logger = setup_logger()
