@@ -1,4 +1,4 @@
-from os.path import join as pjoin, dirname, abspath
+from os.path import join as pjoin
 from pathlib import Path
 from datetime import datetime as dt, timedelta
 import pandas as pd
@@ -8,6 +8,7 @@ logger = setup_logger()
 
 current_folder = Path(__file__).resolve().parent
 workspace = current_folder.parent
+DB_PATH = pjoin(workspace,"data","fitness.sql")
 
 
 
@@ -33,7 +34,7 @@ class Serie():
     def __init__(self, id=None, exo: str=None, date: dt=None, num: int=None, reps: int=None, poids: float=None, seance_id: str=None) -> None:
         self.id: str = id
         self.exo: Exercice = exo
-        self.date: str = date
+        self.date: dt = date
         self.num: int = num
         self.reps: int = reps
         self.poids: float = poids
@@ -74,8 +75,7 @@ class Seance():
         self.date: dt = date
         self.content: dict[str,list[Serie]] = content
         self.duration: timedelta = duration
-
-        
+ 
         
     def __hash__(self):
         return hash((self.name, self.date))
@@ -84,7 +84,7 @@ class Seance():
         return f"{self.name} - {self.date}"
 
     def __repr__(self):
-        return f"Seance: {self.name} - Date: {self.date}"
+        return f"Seance: {self.name} - Date: {self.date} - ID: {self.id}"
 
     def save_as_csv(self) -> None:
         history = pd.read_csv(pjoin(workspace, 'data', 'history.csv'))
@@ -104,4 +104,3 @@ class Seance():
     def load_csv(self) -> pd.DataFrame:
         history = pd.read_csv(pjoin(workspace, 'data', 'history.csv'))
         return history[history['Seance_ID'] == self.id]
-    

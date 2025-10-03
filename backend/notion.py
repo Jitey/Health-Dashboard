@@ -7,12 +7,15 @@ from dotenv import load_dotenv
 from pathlib import Path
 # |-----------Module pour le projet---------|
 from notion_client import Client
+from notion_client.errors import HTTPResponseError
 from utility import JsonFile
 from models import Exercice, Serie, Seance
-from sql import ExoDB
-import pandas as pd
+from models_db import ExoDB, SerieDB, SeanceDB, NotInDBError
+import sqlite3
+import json
 from datetime import datetime as dt, timedelta
-from typing import Generator
+import time
+from typing import Generator, Callable
 # |-----------Module pour le debug---------|
 from icecream import ic
 from utility import timer_performance
@@ -26,6 +29,7 @@ logger = setup_logger()
 
 current_folder = Path(__file__).resolve().parent
 workspace = current_folder.parent
+DB_PATH = pjoin(workspace,"data","fitness.sql")
 load_dotenv(dotenv_path=pjoin(workspace, 'settings', '.env'))
 
 
@@ -36,11 +40,24 @@ load_dotenv(dotenv_path=pjoin(workspace, 'settings', '.env'))
 client_notion = Client(auth=getenv("NOTION_TOKEN_CARNET"))       
 
 
+def safe_request(request: Callable, max_retries: int=5, retry_delay: int=2, *args, **kwargs):
+    """Effectue une requête Notion avec retry automatique sur erreurs temporaires."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            return request(*args, **kwargs)
+
+        except HTTPResponseError as e:
+            if e.code == "bad_gateway":  # 502
+                logger.info(f"[Retry {attempt}/{max_retries}] Erreur 502, nouvel essai dans {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                raise  # autre erreur : on ne masque pas
+    raise RuntimeError(f"Échec après {max_retries} tentatives (erreur 502 persistante).")
 
 
 class SerieNotion(Serie):
     def __init__(self, id: str) -> None:
-        data = client_notion.pages.retrieve(id)['properties']
+        data = safe_request(client_notion.pages.retrieve, page_id=id)['properties']
         self.id: str = id
         self.exo: Exercice = self._parse_exo(data)
         self.date: str = self._parse_date(data)
@@ -58,6 +75,8 @@ class SerieNotion(Serie):
         date_str = JsonFile.safe_get(data, "Date .date.start")
         return dt.fromisoformat(date_str)
 
+    
+    
 
 class SeanceNotion(Seance):
     def __init__(self, id: str, data: dict) -> None:
@@ -68,7 +87,7 @@ class SeanceNotion(Seance):
         self.content: dict[str,list[Serie]] = self._parse_content(data)
         self.duration: timedelta = self._parse_duration(data)
         
-        # self.save()
+        self.save_to_db()
         
     
     def _parse_date(self, data: dict):
@@ -77,7 +96,7 @@ class SeanceNotion(Seance):
 
     def _parse_content(self, data):
         exos = map(lambda x: ExoDB().get_exo_by_id(x['id']), JsonFile.safe_get(data, "Exercises.relation"))
-        series = [SerieNotion(e['id']) for e in JsonFile.safe_get(data, "Workout Exercises.relation")]
+        series = self._parse_serie(JsonFile.safe_get(data, "Workout Exercises.relation"))
         
         return {
             exo.name: list(filter(lambda serie: serie.exo.name == exo.name, series)) for exo in exos
@@ -90,45 +109,94 @@ class SeanceNotion(Seance):
             end = dt.fromisoformat(end_str)
             return end - start
         except TypeError:
-            logger.warning(f"Seance {self.name} - {self.id} has no end date, setting duration to 0.")
+            logger.warning(f"{self.__repr__} has no end date, setting duration to 0.")
             return timedelta(0)
 
-
-
-class SerieCSV(Serie):
-    def __init__(self, data: pd.Series) -> None:
-        self.id: str = data['ID']
-        self.exo: Exercice = ExoDB().get_exo_by_id(data['Exo_ID'])
-        self.date: str = pd.to_datetime(data['Date'])
-        self.num: int = int(data['Série'])
-        self.reps: int = int(data['Reps'])
-        self.poids: float = float(data['Poids'])
-        self.seance_id: str = data['Seance_ID']
-
-
-class SeanceCSV(Seance):
-    def __init__(self, data: pd.DataFrame) -> None:
-        first_row = data.iloc[0]
-        self.id: str = first_row['Seance_ID']
-        self.name: str = first_row['Seance_Name']
-        self.body_part: str = first_row['Seance_Body_part']
-        self.date: dt = pd.to_datetime(first_row['Date'])
-        self.content: dict[str,list[Serie]] = data
-        self.duration: timedelta = pd.to_timedelta(first_row['Seance_Duration'])
-
-
-    @property    
-    def content(self):
-        return self.__content
-    @content.setter
-    def content(self, data: pd.DataFrame):
-        exos = map(lambda id: ExoDB().get_exo_by_id(id), data['Exo_ID'].unique())
-        series = [SerieCSV(row) for idx, row in data.iterrows()]
+    def _parse_serie(self, ids: list[str]) -> list[Serie]:
+        series = []
         
-        self.__content = {
-            exo.name: list(filter(lambda serie: serie.exo.name == exo.name, series)) for exo in exos
-        }
+        for e in ids:
+            if self.serie_exists(e['id']):
+                series.append(SerieDB(e['id']))
+            else:
+                series.append(SerieNotion(e['id']))
+                
+        return series
+
+    def serie_exists(self, id: str) -> bool:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT EXISTS(
+                    SELECT 1 FROM series 
+                    WHERE exo_id = ?
+                )""", (id,))
+            
+            return cur.fetchone()[0] == 1
+    
+
+    def save_to_db(self) -> None:
+        series_ids = []
+        for exo, series in self.content.items():
+            for serie in series:
+                self.save_serie(serie)
+                series_ids.append(serie.id)
         
+        self.save_seance(series_ids)
+        logger.info(f"Saving seance: {self.name} - {self.date.date()}")
+    
+    def save_serie(self, serie: Serie) -> None:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            data_serie = {
+                        "id": serie.id,
+                        "seance_id": self.id,  # doit exister dans ton objet Seance
+                        "num": serie.num,
+                        "exo_id": serie.exo.id,
+                        "reps": serie.reps,
+                        "weight": serie.poids,
+                        "date": serie.date.isoformat()
+                    }
+                        
+            cur.execute("""
+            INSERT INTO series (id, seance_id, num, exo_id, reps, weight, date)
+            VALUES (:id, :seance_id, :num, :exo_id, :reps, :weight, :date)
+            ON CONFLICT(seance_id, exo_id, num)
+            DO UPDATE SET
+                reps=excluded.reps,
+                weight=excluded.weight,
+                date=excluded.date
+        """, data_serie)
+    
+    def save_seance(self, series_ids: list[str]) -> None:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+
+            exo_names = list(self.content.keys())
+            exo_ids = [ExoDB().get_exo_by_name(exo_name) for exo_name in exo_names]
+
+            cur.execute("""
+                INSERT INTO seances (id, name, date, body_part, exo_list, series_list, duration)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name=excluded.name,
+                    date=excluded.date,
+                    body_part=excluded.body_part,
+                    exo_list=excluded.exo_list,
+                    series_list=excluded.series_list,
+                    duration=excluded.duration;
+            """, (
+                self.id,
+                self.name,
+                self.date.isoformat(),
+                self.body_part,
+                json.dumps(exo_ids),
+                json.dumps(series_ids),
+                self.duration.total_seconds(),
+            ))
+
+
 
 
 
@@ -149,34 +217,20 @@ class NontionAPI():
         while response.get('has_more'):
             response = client_notion.databases.query(db_id, start_cursor=response['next_cursor'])
             yield from response['results']
-
+    
     def get_seance(self)->Generator[Seance,any,any]:
-        try:
-            history = pd.read_csv(pjoin(workspace, 'data', 'history.csv'))
-        except FileNotFoundError:
-            history = pd.DataFrame(columns=['ID', 'Exercice', 'Date', 'Série', 'Reps', 'Poids', 'Seance_ID'])
-
         for page in self._carnet:
-            if page['id'] in history['Seance_ID'].values:
-                yield SeanceCSV(history[history['Seance_ID'] == page['id']])
-            else:
+            try:
+                yield SeanceDB(page['id'])
+            except NotInDBError:
                 yield SeanceNotion(page['id'], page['properties'])
 
-    @timer_performance
-    def save_all_seance(self) -> None:
-        for seance in self.seances:
-            if isinstance(seance, SeanceNotion):
-                logger.info(f"Saving seance: {seance.name} - {seance.date.date()}")
-                # seance.save()
-
-
-    
 
 
 if __name__=='__main__':
     app = NontionAPI()
     
-    # ic(len(list(app.seances)))
-    app.save_all_seance()
+    ic(len(list(app.seances)))
+    # app.get_seance()
     
     # app.save_all_seance()

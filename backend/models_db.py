@@ -3,17 +3,30 @@ from pathlib import Path
 from os.path import join as pjoin
 from notion_client import Client
 from utility import JsonFile
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
+import pandas as pd
 from utility import timer_performance
-from models import Exercice
+from models import Exercice, Serie, Seance
 from logger_config import setup_logger
 
 from icecream import ic
 
-DB_PATH = pjoin(Path(__file__).parent.parent,"data","fitness.sql")
+
+current_folder = Path(__file__).resolve().parent
+workspace = current_folder.parent
+DB_PATH = pjoin(workspace,"data","fitness.sql")
 
 
 logger = setup_logger()
+
+
+
+class NotInDBError(ValueError):
+    """Exception levée lorsqu'une ligne n'existe pas dans la base de données."""
+    pass
+
+
+
 
 
 
@@ -21,16 +34,18 @@ def init_db(path: str=DB_PATH):
     with sqlite3.connect(path) as conn:
         cur = conn.cursor()
 
+        # Création de la table muscle_groupe
         cur.execute("""
         CREATE TABLE IF NOT EXISTS muscle_group (
-            id TEXT PRIMARY KEY,
+            id TEXT PRIMARY KEY NOT NULL,
             name TEXT NOT NULL
         )
         """)
 
+        # Création de la table exercices
         cur.execute("""
         CREATE TABLE IF NOT EXISTS exercices (
-            id TEXT PRIMARY KEY,
+            id TEXT PRIMARY KEY NOT NULL,
             name TEXT NOT NULL,
             muscle_group TEXT,
             dificulty TEXT,
@@ -38,27 +53,36 @@ def init_db(path: str=DB_PATH):
         )
         """)
 
+        # Création de la table seances
         cur.execute("""
         CREATE TABLE IF NOT EXISTS seances (
-            id TEXT PRIMARY KEY,
-            date DATE NOT NULL,
-            duration REAL,
-            nb_exos INTEGER
+            id TEXT PRIMARY KEY NOT NULL,
+            name TEXT,
+            date TEXT,
+            body_part TEXT,
+            exo_list TEXT,
+            series_list TEXT,
+            duration INTEGER
         )
         """)
 
+        # Création de la table series
         cur.execute("""
         CREATE TABLE IF NOT EXISTS series (
-            id TEXT PRIMARY KEY,
+            id TEXT PRIMARY KEY NOT NULL,
             seance_id TEXT NOT NULL,
+            num INTEGER,
             exo_id TEXT NOT NULL,
             reps INTEGER,
-            poids REAL,
+            weight REAL,
+            date TEXT,
+            UNIQUE(seance_id, exo_id, num)
             FOREIGN KEY (seance_id) REFERENCES seances(id),
             FOREIGN KEY (exo_id) REFERENCES exercices(id)
         )
         """)
         
+        # Création de la table meta 
         cur.execute("""
         CREATE TABLE IF NOT EXISTS meta (
             table_name TEXT PRIMARY KEY,
@@ -155,8 +179,81 @@ class ExoDB:
         with sqlite3.connect(self.db_path) as conn:
             cur = conn.cursor()
             cur.execute("SELECT last_update FROM meta WHERE table_name=?", ("exercices",))
-            row = cur.fetchone()
+            try:
+                date, = cur.fetchone()
+            except TypeError:
+                return True
 
-            local_last_update = dt.fromisoformat(row[0]) if row[0] else dt.min
+            local_last_update = dt.fromisoformat(date)
         
         return local_last_update < uptdate_date
+
+
+
+class SerieDB(Serie):
+    def __init__(self, id: str) -> None:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT seance_id, exo_id, num, reps, weight, date
+                FROM series
+                WHERE id = ?
+            """, (id,))
+            try:
+                seance_id, exo_id, num, reps, poids, date = cur.fetchone()
+            except TypeError:
+                raise NotInDBError(f"Série {id} introuvable en base de données.")
+
+        self.seance_id = seance_id
+        self.exo = ExoDB().get_exo_by_id(exo_id)
+        self.num = num
+        self.reps = reps
+        self.poids = poids
+        self.date = dt.fromisoformat(date)
+        
+    
+
+
+class SeanceDB(Seance):
+    def __init__(self, id: str) -> None:
+        self.id = id
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT name, date, body_part, duration
+                FROM seances
+                WHERE id = ?
+            """, (self.id,))
+            try:
+                name, date, body_part, duration = cur.fetchone()
+            except TypeError:
+                raise NotInDBError(f"Séance {self.id} introuvable en DB")
+
+            self.name = name
+            self.date = dt.fromisoformat(date)
+            self.body_part = body_part
+            self.duration = timedelta(seconds=duration)  # si duration stockée en sec
+            self.content = self._parse_content()
+            
+
+    def _parse_content(self):
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                    SELECT id FROM series
+                    WHERE seance_id = ?
+                    ORDER BY num ASC
+                """, (self.id,))
+            series_ids = [id for id, in cur.fetchall()]
+
+        series = [SerieDB(sid) for sid in series_ids]
+
+        exo_ids = set(s.exo.id for s in series)
+        exos = [ExoDB().get_exo_by_id(exo_id) for exo_id in exo_ids]
+
+        self.content = {
+            exo.name: [s for s in series if s.exo.id == exo.id]
+            for exo in exos
+        }
+
