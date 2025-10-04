@@ -1,17 +1,17 @@
 import streamlit as st
-import datetime
+from datetime import datetime as dt, date, timedelta
 import plotly.graph_objects as go
-from backend.notion import NontionAPI, Seance, EXO_BDD
+from backend.models_db import DB_PATH, SeanceDB
+import sqlite3
 
 from icecream import ic
 from typing import Generator, Iterable
+from utility import timer_performance
 from logger_config import setup_logger
 
 logger = setup_logger()
 
 
-
-workouts: Generator[Seance] = NontionAPI().seances
 
 
 st.set_page_config(page_title="Entrainements", page_icon="", layout="centered")
@@ -19,33 +19,57 @@ st.set_page_config(page_title="Entrainements", page_icon="", layout="centered")
 st.title("Gérer les entrainements [ici](https://www.notion.so/ZERO-TO-HERO-f0d0fe73cbc141cd94998401a8f22e77?source=copy_link)")
 
 
-# Obtenir la date d'aujourd'hui et le début de la semaine (lundi)
-days_number = 7
-today = datetime.date.today()
-start_of_week = today - datetime.timedelta(days=today.weekday())
-days = [start_of_week + datetime.timedelta(days=i) for i in range(days_number)]
+DAYS_NUMBER = 7
 
-cols = st.columns(days_number)
-for i, day in enumerate(days):
-	with cols[i]:
-		if day == today:
-			st.success(f"**{day.strftime('%a')}**\n" + day.strftime('%d/%m'))
-		else:
-			st.info(f"**{day.strftime('%a')}**\n" + day.strftime('%d/%m'))
+def open_history() -> list[SeanceDB]:
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT * from seances
+        """)
+        
+        return [SeanceDB(*args) for args in cur.fetchall()]
+
+def week_calendar() -> None:
+    """Créer un calendrier hebdo avec la date d'aujourd'hui surlignée
+    """
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    days = [start_of_week + timedelta(days=i) for i in range(DAYS_NUMBER)]
+
+    cols = st.columns(DAYS_NUMBER)
+    for i, day in enumerate(days):
+        with cols[i]:
+            if day == today:
+                st.success(f"**{day.strftime('%a')}**\n" + day.strftime('%d/%m'))
+            else:
+                st.info(f"**{day.strftime('%a')}**\n" + day.strftime('%d/%m'))
+
+
    
-   
-def get_workout_week(workout: Seance) -> int:
-    """Return the week number of a workout.
+def group_workout_by_week(workouts: Iterable[SeanceDB]) -> dict:
+    """Renvoie la liste des séances sous forme de dictionnaire avec comme clé la semaine et valeurs les séances de la semaines
 
     Args:
-        workout (Workout): Workout object.
+        workouts (Iterable[SeanceDB]): Liste des séances
 
     Returns:
-        int: Week number.
+        dict: Dictionaire des séances rangé par semaines
     """
-    return workout.date.isocalendar()[1]
+    weeks = {}
+    for workout in workouts:
+        year, week, _ = workout.date.isocalendar()
+        key = (year, week)
+        
+        if key not in weeks:
+            weeks[key] = set()
+            
+        weeks[key].add(workout.name)
+        
+    return weeks
 
-def count_streak(workouts: Iterable[Seance]) -> int:
+def count_streak(workouts: Iterable[SeanceDB]) -> int:
     """Count the number of consecutive weeks with at least one workout.
 
     Args:
@@ -54,47 +78,77 @@ def count_streak(workouts: Iterable[Seance]) -> int:
     Returns:
         int: Number of consecutive weeks with at least one workout.
     """
-    history = list(workouts)
+    weeks = group_workout_by_week(workouts)
+    sorted_weeks = sorted(weeks.keys(), reverse=True)
+
+    required_sessions = {"Upper A", "Lower", "Upper B"}
     streak_count = 0
-    current_week = datetime.date.today().isocalendar()[1]
-    for workout in history:
-        workout_week = get_workout_week(workout)
-        if workout_week == current_week:
+    current_year, current_week, _ = date.today().isocalendar()
+    for year_week in sorted_weeks:
+        if year_week == (current_year, current_week) and not required_sessions.issubset(weeks[year_week]):
+            continue  # Ignore la semaine actuelle si elle n'est pas terminé
+        elif required_sessions.issubset(weeks[year_week]):
             streak_count += 1
-            current_week -= 1
-        elif workout_week < current_week:
+        else:
             break
         
     return streak_count
-    
 
-def weekly_workouts_volume(workouts: Iterable[Seance], date: datetime.date) -> int:
+@timer_performance
+def week_streak(workouts: Iterable[SeanceDB]) -> None:
+    """Affiche la série de semaine consécutive avec 3 entrainements
+    """
+    st.write(f"{count_streak(workouts)} Semaines\n")
+    st.write("série actuelle")
+
+
+def weekly_workouts_volume(week_date: date=date.today()) -> int:
     """Calculate the total volume of workouts for a given week.
 
     Args:
-        workouts (list): List of Workout objects.
-        week_number (int): Week number.
+        week_date (date): Date to retrieve week from
 
     Returns:
         float: Total volume of workouts for the week.
     """
-    weekly_workouts: filter[Seance] = filter(lambda w: get_workout_week(w) == date.isocalendar()[1] 
-                                                    and w.date.year == date.year, workouts
-                                        )
-    return sum([w.duration.seconds for w in weekly_workouts])//60
+    start_of_week = week_date - timedelta(days=week_date.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT duration FROM seances
+            WHERE date BETWEEN ? AND ?
+        """, (start_of_week.isoformat(), end_of_week.isoformat()))
+        
+        total_seconds = sum([duration for duration, in cur.fetchall()])
+
+    return total_seconds // 60
+
+@timer_performance
+def week_volume() -> None:
+    """Display the weekly volume as a progress bar
+    """
+    TARGET_MINUTES = 3*50
+    volume = weekly_workouts_volume()
+
+    pourcentage = int((volume / TARGET_MINUTES) * 100) if TARGET_MINUTES else 0
+    pourcentage = min(pourcentage, 100)
+
+    st.progress(pourcentage, text=f"{volume}/{TARGET_MINUTES} minutes")
 
 
 
+
+WORKOUTS = open_history()
+
+week_calendar()
 
 cols = st.columns(2)
 with cols[0]:
-    st.write(f"{count_streak(workouts)} Semaines\n")
-    st.write("série actuelle")
-
+    week_streak(WORKOUTS)
 with cols[1]:
-    objectif_minutes = 3*50
-    volume_semaine = weekly_workouts_volume(workouts, datetime.date.today())
-    # volume_semaine = 103
-    pourcentage = int((volume_semaine / objectif_minutes) * 100) if objectif_minutes else 0
-    pourcentage = min(pourcentage, 100)
-    st.progress(pourcentage, text=f"{volume_semaine}/{objectif_minutes} minutes")
+    week_volume()
+
+

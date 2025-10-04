@@ -4,9 +4,9 @@ from os.path import join as pjoin
 from notion_client import Client
 from utility import JsonFile
 from datetime import datetime as dt, timedelta
-import pandas as pd
 from utility import timer_performance
-from models import Exercice, Serie, Seance
+from .models import Exercice, Serie, Seance
+from settings.config import DB_PATH
 from logger_config import setup_logger
 
 from icecream import ic
@@ -14,7 +14,6 @@ from icecream import ic
 
 current_folder = Path(__file__).resolve().parent
 workspace = current_folder.parent
-DB_PATH = pjoin(workspace,"data","fitness.sql")
 
 
 logger = setup_logger()
@@ -99,6 +98,12 @@ class ExoDB:
 
     def get_exo_by_name(self, name: str) -> Exercice:
         """Retourne l'exercice par son nom"""
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+
+            cur.execute("SELECT id, name FROM exercices WHERE name==?", (name,))
+            res = cur.fetchone()
+            return Exercice(*res)
     
     def get_exo_by_id(self, id: str) -> Exercice:
         """Retourne l'exercice par son ID Notion"""
@@ -191,7 +196,7 @@ class ExoDB:
 
 
 class SerieDB(Serie):
-    def __init__(self, id: str) -> None:
+    def __init__(self, id: str, *args, **kwargs) -> None:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
             cur.execute("""
@@ -215,7 +220,7 @@ class SerieDB(Serie):
 
 
 class SeanceDB(Seance):
-    def __init__(self, id: str) -> None:
+    def __init__(self, id: str, *args, **kwargs) -> None:
         self.id = id
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()

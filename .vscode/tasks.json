@@ -9,11 +9,23 @@
 				"-m",
 				"streamlit",
 				"run",
-				"main.py"
+				"main.py",
+				"--server.runOnSave",
+				"true"
 			],
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+		"label": "Lancer Webhook FastAPI",
+		"type": "shell",
+		"command": "uvicorn",
+		"args": [
+			"backend.notion:app",
+			"--reload"
+		],
+		"group": "build"
 		}
 	]
 }

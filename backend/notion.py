@@ -9,8 +9,9 @@ from pathlib import Path
 from notion_client import Client
 from notion_client.errors import HTTPResponseError
 from utility import JsonFile
-from models import Exercice, Serie, Seance
-from models_db import ExoDB, SerieDB, SeanceDB, NotInDBError
+from backend.models import Exercice, Serie, Seance
+from backend.models_db import ExoDB, SerieDB, SeanceDB, NotInDBError
+from settings.config import DB_PATH
 import sqlite3
 import json
 from datetime import datetime as dt, timedelta
@@ -20,6 +21,7 @@ from typing import Generator, Callable
 from icecream import ic
 from utility import timer_performance
 from logger_config import setup_logger
+import logging
 
 logger = setup_logger()
 
@@ -29,15 +31,14 @@ logger = setup_logger()
 
 current_folder = Path(__file__).resolve().parent
 workspace = current_folder.parent
-DB_PATH = pjoin(workspace,"data","fitness.sql")
 load_dotenv(dotenv_path=pjoin(workspace, 'settings', '.env'))
 
 
 
 
 
-
-client_notion = Client(auth=getenv("NOTION_TOKEN_CARNET"))       
+NOTION_SECRET = getenv("NOTION_TOKEN_CARNET")
+client_notion = Client(auth=NOTION_SECRET)
 
 
 def safe_request(request: Callable, max_retries: int=5, retry_delay: int=2, *args, **kwargs):
@@ -174,7 +175,6 @@ class SeanceNotion(Seance):
             cur = conn.cursor()
 
             exo_names = list(self.content.keys())
-            exo_ids = [ExoDB().get_exo_by_name(exo_name) for exo_name in exo_names]
 
             cur.execute("""
                 INSERT INTO seances (id, name, date, body_part, exo_list, series_list, duration)
@@ -191,7 +191,7 @@ class SeanceNotion(Seance):
                 self.name,
                 self.date.isoformat(),
                 self.body_part,
-                json.dumps(exo_ids),
+                json.dumps(exo_names),
                 json.dumps(series_ids),
                 self.duration.total_seconds(),
             ))
@@ -202,7 +202,7 @@ class SeanceNotion(Seance):
 
 
 
-class NontionAPI():
+class NotionAPI():
     def __init__(self) -> None:
         ExoDB().sync_from_notion(client_notion)
         self._carnet = self.open_workouts()
@@ -225,12 +225,20 @@ class NontionAPI():
             except NotInDBError:
                 yield SeanceNotion(page['id'], page['properties'])
 
+    def update_from_notion():
+        pass
 
+
+
+
+notion_logger = logging.getLogger('notion_client')
+notion_logger.setLevel(logging.INFO)
+notion_logger.handlers.clear()  # Supprime tous les handlers existants
+for handler in logger.handlers:
+    notion_logger.addHandler(handler)
 
 if __name__=='__main__':
-    app = NontionAPI()
-    
+    app = NotionAPI()
+
     ic(len(list(app.seances)))
-    # app.get_seance()
     
-    # app.save_all_seance()
