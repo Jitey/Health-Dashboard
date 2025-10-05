@@ -1,7 +1,6 @@
 from os import sep
 from os.path import join as pjoin
 import streamlit as st
-import subprocess
 
 
 from icecream import ic

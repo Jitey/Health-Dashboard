@@ -240,5 +240,7 @@ for handler in logger.handlers:
 if __name__=='__main__':
     app = NotionAPI()
 
-    ic(len(list(app.seances)))
+    # ic(len(list(app.seances)))
+
+    
     

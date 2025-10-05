@@ -12,11 +12,30 @@ DB_PATH = pjoin(workspace,"data","fitness.sql")
 
 
 
+class MuscleGroup():
+    def __init__(self, id: str, name: str, body_part: str) -> None:
+        self.id = id
+        self.name = name
+        self.body_part = body_part
+        
+    
+    def __str__(self) -> str:
+        return self.name
+    
+    def __repr__(self) -> str:
+        return f"MuscleGroup(id={self.id}, name={self.name}, body_part={self.body_part})"
+
+    def __hash__(self):
+        return hash(self.id)
+
+
 
 class Exercice():
-    def __init__(self, id: str, name: str) -> None:
+    def __init__(self, id: str, name: str, muscle_group: list[MuscleGroup]=None, difficulty: str=None) -> None:
         self.id: str = id
         self.name: str = name
+        self.muscle_group = muscle_group
+        self.difficulty = difficulty
 
     def __str__(self) -> str:
         return self.name
@@ -85,22 +104,3 @@ class Seance():
 
     def __repr__(self):
         return f"Seance: {self.name} - Date: {self.date} - ID: {self.id}"
-
-    def save_as_csv(self) -> None:
-        history = pd.read_csv(pjoin(workspace, 'data', 'history.csv'))
-        
-        for exo, series in self.content.items():
-            for s in series:
-                if (s.date, s.num, s.seance_id) not in history.itertuples():
-                    row = s.to_df()
-                    row['Seance_Name'] = self.name
-                    row['Seance_Body_part'] = self.body_part
-                    row['Seance_Duration'] = self.duration
-                    history = pd.concat([history, row], ignore_index=True)
-                
-        history.to_csv(pjoin(workspace, 'data', 'history.csv'), index=False)
-        logger.info(f"Saving seance: {self.name} - {self.date.date()}")
-        
-    def load_csv(self) -> pd.DataFrame:
-        history = pd.read_csv(pjoin(workspace, 'data', 'history.csv'))
-        return history[history['Seance_ID'] == self.id]

@@ -5,8 +5,9 @@ from notion_client import Client
 from utility import JsonFile
 from datetime import datetime as dt, timedelta
 from utility import timer_performance
-from .models import Exercice, Serie, Seance
+from .models import Exercice, Serie, Seance, MuscleGroup
 from settings.config import DB_PATH
+import json
 from logger_config import setup_logger
 
 from icecream import ic
@@ -37,7 +38,8 @@ def init_db(path: str=DB_PATH):
         cur.execute("""
         CREATE TABLE IF NOT EXISTS muscle_group (
             id TEXT PRIMARY KEY NOT NULL,
-            name TEXT NOT NULL
+            name TEXT NOT NULL,
+            body_part TEXT NOT NULL
         )
         """)
 
@@ -123,29 +125,19 @@ class ExoDB:
             client_notion (Client): Client notiob
             notion_url (str, optional): url de la BDD. Defaults to '026420f9e2b44f2bb72560c9775ac355'.
         """
-        if not self.has_change(client_notion, notion_url):
+        if self.has_change(client_notion, notion_url):
             logger.info("Exercices are up to date.")
             return
 
-        
         logger.info("Syncing exercices from Notion...")
         db = client_notion.databases.query(notion_url)
         
-        self.fetch(db['results'])
-        
-        with sqlite3.connect(self.db_path) as conn:
-            cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO meta (table_name, last_update)
-                    VALUES (?, ?)
-                    ON CONFLICT(table_name) DO UPDATE SET last_update=excluded.last_update
-                """, 
-                ("exercices", dt.now().isoformat())
-            )
+        self.fetch(db['results'], client_notion)
+        self.upate_date()
             
         logger.info("Exercices database updated.")
 
-    def fetch(self, pages: dict) -> None:
+    def fetch(self, pages: dict, client_notion: Client) -> None:
         """Fetch the Notion database and update the local database if there are new exercices.
 
         Args:
@@ -155,21 +147,59 @@ class ExoDB:
             cur = conn.cursor()
 
             for page in pages:
-                id = JsonFile.safe_get(page, "id")
-                name = JsonFile.safe_get(page, "properties.Name.title.0.plain_text")
-                muscle_group = JsonFile.safe_get(page, "properties.Muscle Group.relation.0.id")
-                difficulty = JsonFile.safe_get(page, "properties.Difficulty.select.name")
+                exo = self.retrieve_exos(page, client_notion)
+                self.save_exo(cur, exo)
+                
+                mgs = exo.muscle_group
+                self.save_muscle_group(cur, mgs)
 
-                cur.execute("SELECT 1 FROM exercices WHERE id = ?", (id,))
-
-                if not cur.fetchone():
-                    cur.execute(
-                        "INSERT INTO exercices (id, name, muscle_group, dificulty) VALUES (?, ?, ?, ?)",
-                        (id, name, muscle_group, difficulty)
-                    )
-
-                    logger.info(f"New exercice added: {name} - {id}")
+                logger.info(f"New exercice added: {exo.name} - {id}")
  
+    def retrieve_exos(self, page: dict, client_notion: Client) -> Exercice:
+        id = JsonFile.safe_get(page, "id")
+        name = JsonFile.safe_get(page, "properties.Name.title.0.plain_text")
+        muscle_group_ids = JsonFile.safe_get(page, "properties.Muscle Group.relation")
+        muscle_group = [self.retrieve_muscle_group(relation['id'], client_notion) for relation in muscle_group_ids]
+        difficulty = JsonFile.safe_get(page, "properties.Difficulty.select.name")
+
+        return Exercice(id, name, muscle_group, difficulty)
+ 
+    def retrieve_muscle_group(self, id: str, client_notion: Client) -> MuscleGroup:
+        page = client_notion.pages.retrieve(id)
+        name = JsonFile.safe_get(page, "properties.Name.title.0.plain_text")
+        body_part = JsonFile.safe_get(page, "properties.Body Part.select.name")
+        
+        return MuscleGroup(id, name, body_part)
+    
+    def save_exo(self, cur: sqlite3.Cursor, exo: Exercice) -> None:
+        mg_ids = [group.id for group in exo.muscle_group] if isinstance(exo.muscle_group, list) else exo.muscle_group.id
+        cur.execute(
+            """INSERT INTO exercices (id, name, muscle_group, dificulty) 
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name=excluded.name,
+                    muscle_group=excluded.muscle_group,
+                    dificulty=excluded.dificulty;
+                """,
+            (exo.id, exo.name, json.dumps(mg_ids), exo.difficulty)
+        )
+    
+    def save_muscle_group(self, cur: sqlite3.Cursor, mgs: MuscleGroup|list[MuscleGroup]) -> None:
+        if isinstance(mgs, MuscleGroup):
+            mgs = [mgs]
+
+        for mg in mgs:
+            cur.execute(
+                """INSERT INTO muscle_group (id, name, body_part) 
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        name=excluded.name,
+                        body_part=excluded.body_part;
+                    """,
+                (mg.id, mg.name, mg.body_part)
+            )
+        
+        
     def has_change(self, client_notion: Client, notion_url: str) -> bool:
         """Check if the Notion database has been updated since the last sync.
 
@@ -193,12 +223,77 @@ class ExoDB:
         
         return local_last_update < uptdate_date
 
+    def upate_date(self) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+            for db in ["exercices", "muscle_group"]:
+                cur.execute("""
+                    INSERT INTO meta (table_name, last_update)
+                        VALUES (?, ?)
+                        ON CONFLICT(table_name) DO UPDATE SET last_update=excluded.last_update
+                    """, 
+                    (db, dt.now().isoformat())
+                )
+
+
+
+
+class MuscleGroupDB(MuscleGroup):
+    def __init__(self, id: str):
+        self.id = id
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            
+            cur.execute("""
+                SELECT name, body_part
+                FROM muscle_group
+                WHERE id = ?
+            """, (id,))
+            try:
+                name, body_part = cur.fetchone()
+            except TypeError:
+                raise NotInDBError(f"Groupe musculaire {id} introuvable en base de données.")
+        
+        self.name = name
+        self.body_part = body_part
+        
+    def __str__(self) -> str:
+        return self.name
+
+
+
+class ExerciceDB(Exercice):
+    def __init__(self, id: str):
+        self.id = id
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            
+            cur.execute("""
+                SELECT name, muscle_group, dificulty
+                FROM exercices
+                WHERE id = ?
+            """, (id,))
+            try:
+                name, muscle_group_ids, dificulty = cur.fetchone()
+            except TypeError:
+                raise NotInDBError(f"Exercice {id} introuvable en base de données.")
+        
+        self.name = name
+        self.muscle_group = self._parse_muscle_group(muscle_group_ids)
+        self.difficulty = dificulty
+        
+    
+    def _parse_muscle_group(self, ids: list[str]) -> list[MuscleGroup]:
+        ic(ids)
+
 
 
 class SerieDB(Serie):
     def __init__(self, id: str, *args, **kwargs) -> None:
+        self.id = id
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
+            
             cur.execute("""
                 SELECT seance_id, exo_id, num, reps, weight, date
                 FROM series

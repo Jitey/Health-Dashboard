@@ -45,13 +45,15 @@ class JsonFile:
         Returns:
             _type_: L'élément cherché
         """
+        original_data = data
         keys = dot_chained_keys.split('.')
         for key in keys:
             try:
                 data = data[int(key)] if isinstance(data,list) else data[key]
             except (KeyError, TypeError, IndexError, ValueError) as error:
                 logger.error(f"{error.__class__.__name__} {error}")
-                logger.warning(data)
+                JsonFile.write(original_data, "error_data")
+                logger.warning(original_data)
                 logger.warning(keys)
                 logger.warning(key)
         return data

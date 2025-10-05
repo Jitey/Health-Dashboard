@@ -1,4 +1,4 @@
 import streamlit as st
 
-st.title("Activités")
-st.write("Consultez vos activités physiques et entraînements.")
+st.title("Flux")
+st.write("Consultez le flux de vos entraînements.")
