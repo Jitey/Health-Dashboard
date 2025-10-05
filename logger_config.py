@@ -23,6 +23,13 @@ class ColoredFormatter(logging.Formatter):
         record.levelname = original_levelname
         return result
 
+    def formatException(self, ei):
+        return ""  # ignore complètement la trace
+    
+class FileFormatter(logging.Formatter):
+    def formatException(self, ei):
+        return ""  # ignore complètement la trace
+
 
 def set_consol_handler(logger: logging.Logger, log_format: str, date_format: str):
     console_handler = logging.StreamHandler()
@@ -37,7 +44,7 @@ def set_consol_handler(logger: logging.Logger, log_format: str, date_format: str
 
 def set_file_handler(logger: logging.Logger, log_format: str, date_format: str):
     file_handler = logging.FileHandler("logs.log")
-    file_handler.setFormatter(logging.Formatter(fmt=log_format, datefmt=date_format))
+    file_handler.setFormatter(FileFormatter(fmt=log_format, datefmt=date_format))
     logger.addHandler(file_handler)
 
 
