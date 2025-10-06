@@ -33,10 +33,3 @@ except:
 pg = st.navigation(pages, position="sidebar")
 
 pg.run()
-# subprocess.Popen([
-#     "uvicorn",
-#     "backend.notion:app",  # remplace par le module où ton FastAPI est défini
-#     "--host", "0.0.0.0",
-#     "--port", "8000",
-#     "--reload"
-# ])
