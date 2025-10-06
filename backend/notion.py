@@ -20,7 +20,7 @@ from typing import Generator, Callable
 # |-----------Module pour le debug---------|
 from icecream import ic
 from utility import timer_performance
-from logger_config import setup_logger
+from logs.logger_config import setup_logger
 import logging
 
 logger = setup_logger()

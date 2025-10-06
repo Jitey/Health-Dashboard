@@ -7,7 +7,7 @@ import sqlite3
 from icecream import ic
 from typing import Generator, Iterable
 from utility import timer_performance
-from logger_config import setup_logger
+from logs.logger_config import setup_logger
 
 logger = setup_logger()
 

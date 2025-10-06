@@ -2,7 +2,7 @@ from os.path import join as pjoin
 from pathlib import Path
 from datetime import datetime as dt, timedelta
 import pandas as pd
-from logger_config import setup_logger
+from logs.logger_config import setup_logger
 
 logger = setup_logger()
 

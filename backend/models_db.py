@@ -8,7 +8,7 @@ from utility import timer_performance
 from .models import Exercice, Serie, Seance, MuscleGroup
 from settings.config import DB_PATH
 import json
-from logger_config import setup_logger
+from logs.logger_config import setup_logger
 
 from icecream import ic
 

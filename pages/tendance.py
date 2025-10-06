@@ -4,7 +4,7 @@ import pandas as pd
 import sqlite3
 from backend.models_db import DB_PATH, MuscleGroupDB
 import json
-from logger_config import setup_logger
+from logs.logger_config import setup_logger
 
 from icecream import ic
 

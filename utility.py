@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from functools import wraps
 from time import perf_counter, perf_counter_ns, time
-from logger_config import setup_logger
+from logs.logger_config import setup_logger
 
 logger = setup_logger()
 
