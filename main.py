@@ -24,10 +24,6 @@ pages = {
     ],
 }
 
-try:
-    raise ValueError("test")
-except:
-    logger.error("Lourd", exc_info=True)
 
 
 pg = st.navigation(pages, position="sidebar")

@@ -21,6 +21,7 @@ st.title("Gérer les entrainements [ici](https://www.notion.so/ZERO-TO-HERO-f0d0
 
 DAYS_NUMBER = 7
 
+@timer_performance
 def open_history() -> list[SeanceDB]:
     with sqlite3.connect(DB_PATH) as conn:
         cur = conn.cursor()
