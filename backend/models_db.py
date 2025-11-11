@@ -1,23 +1,15 @@
 import sqlite3
-from pathlib import Path
-from os.path import join as pjoin
 from notion_client import Client
-from utility import JsonFile
+from utility import JsonFile, timer_performance
 from datetime import datetime as dt, timedelta
-from utility import timer_performance
 from .models import Exercice, Serie, Seance, MuscleGroup
-from settings.config import DB_PATH
+from settings.config import DB_PATH, logger
 import json
-from logs.logger_config import setup_logger
 
 from icecream import ic
 
 
-current_folder = Path(__file__).resolve().parent
-workspace = current_folder.parent
 
-
-logger = setup_logger()
 
 
 
@@ -338,6 +330,9 @@ class SeanceDB(Seance):
             
 
     def _parse_content(self):
+        """Récupère les séries associées à la séance et les organise par exercice."""
+        
+        # Récupérer les IDs des séries associées à la séance
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
             cur.execute("""
@@ -347,11 +342,14 @@ class SeanceDB(Seance):
                 """, (self.id,))
             series_ids = [id for id, in cur.fetchall()]
 
+        # Créer les objets SerieDB pour chaque série
         series = [SerieDB(sid) for sid in series_ids]
 
+        # Récupérer les exercices associés aux séries
         exo_ids = set(s.exo.id for s in series)
         exos = [ExoDB().get_exo_by_id(exo_id) for exo_id in exo_ids]
 
+        # Organiser les séries par exercice
         self.content = {
             exo.name: [s for s in series if s.exo.id == exo.id]
             for exo in exos
