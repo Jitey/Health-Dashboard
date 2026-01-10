@@ -87,7 +87,7 @@ def init_db(path: str=DB_PATH):
 
 class ExoDB:
     def __init__(self, db_path=DB_PATH) -> None:
-        init_db()
+        # init_db()
         self.db_path = db_path
 
     def get_exo_by_name(self, name: str) -> Exercice:
@@ -313,12 +313,12 @@ class SeanceDB(Seance):
             cur = conn.cursor()
 
             cur.execute("""
-                SELECT name, date, body_part, duration
+                SELECT name, date, body_part, duration, series_list
                 FROM seances
                 WHERE id = ?
             """, (self.id,))
             try:
-                name, date, body_part, duration = cur.fetchone()
+                name, date, body_part, duration, series_list_str = cur.fetchone()
             except TypeError:
                 raise NotInDBError(f"Séance {self.id} introuvable en DB")
 
@@ -326,6 +326,7 @@ class SeanceDB(Seance):
             self.date = dt.fromisoformat(date)
             self.body_part = body_part
             self.duration = timedelta(seconds=duration)  # si duration stockée en sec
+            self.series_ids = json.loads(series_list_str)
             self.content = self._parse_content()
             
 
@@ -347,7 +348,7 @@ class SeanceDB(Seance):
 
         # Récupérer les exercices associés aux séries
         exo_ids = set(s.exo.id for s in series)
-        exos = [ExoDB().get_exo_by_id(exo_id) for exo_id in exo_ids]
+        exos = [ExoDB.get_exo_by_id(exo_id) for exo_id in exo_ids]
 
         # Organiser les séries par exercice
         self.content = {
