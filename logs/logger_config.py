@@ -43,14 +43,14 @@ def set_consol_handler(logger: logging.Logger, log_format: str, date_format: str
 
 
 def set_file_handler(logger: logging.Logger, log_format: str, date_format: str):
-    file_handler = logging.FileHandler("logs.log")
+    file_handler = logging.FileHandler("./logs/logs.log")
     file_handler.setFormatter(FileFormatter(fmt=log_format, datefmt=date_format))
     logger.addHandler(file_handler)
 
 
 
 def set_error_handler(logger: logging.Logger, log_format: str, date_format: str):
-    error_handler = logging.FileHandler("errors.log")
+    error_handler = logging.FileHandler("./logs/errors.log")
     error_handler.setLevel(logging.WARNING)
     error_handler.setFormatter(logging.Formatter(
         fmt="%(asctime)s %(levelname)-8s %(name)s: %(message)s\n\t%(exc_info)s",

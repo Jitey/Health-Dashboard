@@ -54,7 +54,7 @@ class JsonFile:
                 logger.error(f"{error.__class__.__name__} {error}")
                 JsonFile.write(original_data, "error_data")
                 logger.warning(original_data)
-                logger.warning(keys)
+                logger.warning(dot_chained_keys)
                 logger.warning(key)
         return data
 

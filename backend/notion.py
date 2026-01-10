@@ -37,7 +37,8 @@ client_notion = Client(auth=NOTION_SECRET)
 
 class SerieNotionPolling(Serie):
     def __init__(self, id: str) -> None:
-        data = client_notion.pages.retrieve(id)
+        page: dict = client_notion.pages.retrieve(id)
+        data = page['properties']
         self.id: str = id
         self.exo: Exercice = self._parse_exo(data)
         self.date: dt = self._parse_date(data)
@@ -48,8 +49,12 @@ class SerieNotionPolling(Serie):
 
 
     def _parse_exo(self, data: dict) -> Exercice:
-        exo_id = JsonFile.safe_get(data, "Exercise.relation.0.id")
-        return ExoDB().get_exo_by_id(exo_id)
+        try:
+            exo_id = JsonFile.safe_get(data, "Exercise.relation.0.id")
+            return ExoDB().get_exo_by_id(exo_id)
+        except NotInDBError as e:
+            JsonFile.write(data, "error_data.json")
+            
         
     def _parse_date(self, data: dict) -> dt:
         date_str = JsonFile.safe_get(data, "Date .date.start")
@@ -159,11 +164,11 @@ class NotionAPI():
 
 
 
-notion_logger = logging.getLogger('notion_client')
-notion_logger.setLevel(logging.INFO)
-notion_logger.handlers.clear()  # Supprime tous les handlers existants
-for handler in logger.handlers:
-    notion_logger.addHandler(handler)
+# notion_logger = logging.getLogger('notion_client')
+# notion_logger.setLevel(logging.INFO)
+# notion_logger.handlers.clear()  # Supprime tous les handlers existants
+# for handler in logger.handlers:
+#     notion_logger.addHandler(handler)
 
 if __name__=='__main__':
     app = NotionAPI()

@@ -106,6 +106,10 @@ class ExoDB:
 
             cur.execute("SELECT id, name FROM exercices WHERE id==?", (id,))
             res = cur.fetchone()
+            
+            if res is None:
+                raise NotInDBError(f"Exercice {id} introuvable en base de données.")
+            
             return Exercice(*res)
 
     
