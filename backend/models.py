@@ -68,18 +68,6 @@ class Serie():
     
     def __eq__(self, other):
         return self.exo == other.exo and self.date == other.date and self.num == other.num
-    
-    def to_df(self)->pd.DataFrame:
-        return pd.DataFrame([{
-            'ID': self.id,
-            'Exercice': self.exo.name,
-            'Date': self.date,
-            'Série': self.num,
-            'Reps': self.reps,
-            'Poids': self.poids,
-            'Seance_ID': self.seance_id,
-            'Exo_ID': self.exo.id,
-        }])
         
     def save_to_db(self) -> None:
         with sqlite3.connect(DB_PATH) as conn:
@@ -87,13 +75,13 @@ class Serie():
         
             try:            
                 cur.execute("""
-                    INSERT INTO series (id, seance_id, num, exo_id, reps, weight, date)
-                    VALUES (:id, :seance_id, :num, :exo_id, :reps, :weight, :date)
+                    INSERT INTO series (id, seance_id, num, exo_id, reps, weight, date_ts)
+                    VALUES (:id, :seance_id, :num, :exo_id, :reps, :weight, :date_ts)
                     ON CONFLICT(seance_id, exo_id, num)
                     DO UPDATE SET
                         reps=excluded.reps,
                         weight=excluded.weight,
-                        date=excluded.date
+                        date_ts=excluded.date_ts
                 """, {
                     "id": self.id,
                     "seance_id": self.seance_id,
@@ -101,7 +89,7 @@ class Serie():
                     "exo_id": self.exo.id,
                     "reps": self.reps,
                     "weight": self.poids,
-                    "date": self.date.isoformat()
+                    "date_ts": self.date.timestamp()
                 })
                 
                 logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} saved.")
@@ -143,17 +131,17 @@ class Seance():
             cur = conn.cursor()
 
             cur.execute("""
-                INSERT INTO seances (id, name, date, body_part, duration)
-                VALUES (:id, :name, :date, :body_part, :duration)
+                INSERT INTO seances (id, name, date_ts, body_part, duration)
+                VALUES (:id, :name, :date_ts, :body_part, :duration)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
-                    date=excluded.date,
+                    date_ts=excluded.date_ts,
                     body_part=excluded.body_part,
                     duration=excluded.duration;
             """, {
                 "id": self.id,
                 "name": self.name,
-                "date": self.date.isoformat(),
+                "date_ts": self.date.timestamp(),
                 "body_part": self.body_part,
                 "duration": self.duration.total_seconds(),
             })

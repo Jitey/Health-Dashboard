@@ -303,9 +303,6 @@ class MuscleGroupDB(MuscleGroup):
         
         self.name = name
         self.body_part = body_part
-        
-    def __str__(self) -> str:
-        return self.name
 
 
 
@@ -316,22 +313,31 @@ class ExerciceDB(Exercice):
             cur = conn.cursor()
             
             cur.execute("""
-                SELECT name, muscle_group, dificulty
+                SELECT name, dificulty
                 FROM exercices
                 WHERE id = ?
             """, (id,))
             try:
-                name, muscle_group_ids, dificulty = cur.fetchone()
+                name, dificulty = cur.fetchone()
             except TypeError:
                 raise NotInDBError(f"Exercice {id} introuvable en base de données.\nnotion.so/{id.replace('-', '')}")
         
         self.name = name
-        self.muscle_group = self._parse_muscle_group(muscle_group_ids)
+        self.muscle_group = self._parse_muscle_group(id)
         self.difficulty = dificulty
         
     
     def _parse_muscle_group(self, ids: list[str]) -> list[MuscleGroup]:
-        ic(ids)
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT muscle_group_id
+                FROM exercice_muscle_group
+                WHERE exercice_id = ?
+            """, (self.id,))
+            mg_ids = [mg_id for mg_id, in cur.fetchall()]
+
+        return [MuscleGroupDB(mg_id) for mg_id in mg_ids]
 
 
 
@@ -347,7 +353,7 @@ class SerieDB(Serie):
                 WHERE id = ?
             """, (id,))
             try:
-                seance_id, exo_id, num, reps, poids, date = cur.fetchone()
+                seance_id, exo_id, num, reps, poids, date_ts = cur.fetchone()
             except TypeError:
                 raise NotInDBError(f"Série {id} introuvable en base de données.\nnotion.so/{id.replace('-', '')}")
 
@@ -356,7 +362,7 @@ class SerieDB(Serie):
         self.num = num
         self.reps = reps
         self.poids = poids
-        self.date = dt.fromisoformat(date)
+        self.date = dt.fromtimestamp(date_ts)
         
     
 
@@ -373,12 +379,12 @@ class SeanceDB(Seance):
                 WHERE id = ?
             """, (self.id,))
             try:
-                name, date, body_part, duration = cur.fetchone()
+                name, date_ts, body_part, duration = cur.fetchone()
             except TypeError:
                 raise NotInDBError(f"Séance {self.id} introuvable en DB\nnotion.so/{self.id.replace('-', '')}")
 
             self.name = name
-            self.date = dt.fromisoformat(date)
+            self.date = dt.fromtimestamp(date_ts)
             self.body_part = body_part
             self.duration = timedelta(seconds=duration)  # si duration stockée en sec
             self.content = self._parse_content()
