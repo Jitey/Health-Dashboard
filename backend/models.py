@@ -1,9 +1,12 @@
 from datetime import datetime as dt, timedelta
 import pandas as pd
 import sqlite3
-import json
-from settings.config import DB_PATH
+from settings import DB_PATH, logger
 
+
+class MissingDataError(Exception):
+    """"Exception levée lorsqu'une donnée requise est manquante."""
+    pass
 
 
 class MuscleGroup():
@@ -81,25 +84,38 @@ class Serie():
     def save_to_db(self) -> None:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
-            data_serie = {
-                        "id": self.id,
-                        "seance_id": self.seance_id,
-                        "num": self.num,
-                        "exo_id": self.exo.id,
-                        "reps": self.reps,
-                        "weight": self.poids,
-                        "date": self.date.isoformat()
-                    }
-                        
-            cur.execute("""
-            INSERT INTO series (id, seance_id, num, exo_id, reps, weight, date)
-            VALUES (:id, :seance_id, :num, :exo_id, :reps, :weight, :date)
-            ON CONFLICT(seance_id, exo_id, num)
-            DO UPDATE SET
-                reps=excluded.reps,
-                weight=excluded.weight,
-                date=excluded.date
-        """, data_serie)
+        
+            try:            
+                cur.execute("""
+                    INSERT INTO series (id, seance_id, num, exo_id, reps, weight, date)
+                    VALUES (:id, :seance_id, :num, :exo_id, :reps, :weight, :date)
+                    ON CONFLICT(seance_id, exo_id, num)
+                    DO UPDATE SET
+                        reps=excluded.reps,
+                        weight=excluded.weight,
+                        date=excluded.date
+                """, {
+                    "id": self.id,
+                    "seance_id": self.seance_id,
+                    "num": self.num,
+                    "exo_id": self.exo.id,
+                    "reps": self.reps,
+                    "weight": self.poids,
+                    "date": self.date.isoformat()
+                })
+                
+                logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} saved.")
+            except sqlite3.ProgrammingError as e:
+                if "parameter 2" in str(e):
+                    raise MissingDataError(f"No seance associated with serie {self.num}: {self.exo.name} - {self.date.date()}. \nError: {e}")
+                else:
+                    raise e
+                
+            except sqlite3.IntegrityError as e:
+                if str(e) == "UNIQUE constraint failed":
+                    logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} already up to date.")
+                else:
+                    raise e
 
 
 
@@ -114,7 +130,7 @@ class Seance():
  
         
     def __hash__(self):
-        return hash((self.name, self.date))
+        return hash(self.id)
             
     def __str__(self):
         return f"{self.name} - {self.date}"
@@ -126,24 +142,20 @@ class Seance():
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
 
-            exo_names = list(self.content.keys())
-
             cur.execute("""
-                INSERT INTO seances (id, name, date, body_part, exo_list, series_list, duration)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO seances (id, name, date, body_part, duration)
+                VALUES (:id, :name, :date, :body_part, :duration)
                 ON CONFLICT(id) DO UPDATE SET
                     name=excluded.name,
                     date=excluded.date,
                     body_part=excluded.body_part,
-                    exo_list=excluded.exo_list,
-                    series_list=excluded.series_list,
                     duration=excluded.duration;
-            """, (
-                self.id,
-                self.name,
-                self.date.isoformat(),
-                self.body_part,
-                json.dumps(exo_names),
-                json.dumps(series_ids),
-                self.duration.total_seconds(),
-            ))
+            """, {
+                "id": self.id,
+                "name": self.name,
+                "date": self.date.isoformat(),
+                "body_part": self.body_part,
+                "duration": self.duration.total_seconds(),
+            })
+            
+            logger.info(f"Seance: {self.name} - {self.date.date()} saved.")
