@@ -4,7 +4,7 @@ from .models import (
     Serie, 
     Seance, 
 )
-from models import MissingDataError
+from .models import MissingDataError
 
 from .models_db import (
     ExoDB,

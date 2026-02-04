@@ -287,6 +287,7 @@ class ExoDB:
 
 class MuscleGroupDB(MuscleGroup):
     def __init__(self, id: str):
+        assert id is not None, "MuscleGroupDB id cannot be None."
         self.id = id
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
@@ -348,7 +349,7 @@ class SerieDB(Serie):
             cur = conn.cursor()
             
             cur.execute("""
-                SELECT seance_id, exo_id, num, reps, weight, date
+                SELECT seance_id, exo_id, num, reps, weight, date_ts
                 FROM series
                 WHERE id = ?
             """, (id,))
@@ -374,7 +375,7 @@ class SeanceDB(Seance):
             cur = conn.cursor()
 
             cur.execute("""
-                SELECT name, date, body_part, duration
+                SELECT name, date_ts, body_part, duration
                 FROM seances
                 WHERE id = ?
             """, (self.id,))

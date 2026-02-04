@@ -18,18 +18,17 @@ def load_seance_data() -> pd.DataFrame:
     """
     with sqlite3.connect(DB_PATH) as conn:
         df = pd.read_sql(
-            """SELECT w.date, 
+            """SELECT w.date_ts, 
                       w.duration, 
-                      count(w.series_list) AS total_serie, 
                       SUM(s.reps*s.weight) AS volume,
                       SUM(s.reps) AS total_reps
                 FROM seances AS w
                 JOIN series AS s ON s.seance_id == w.id
                 GROUP BY w.id
-                ORDER BY w.date DESC       
+                ORDER BY w.date_ts DESC       
             """, conn)
 
-    df['date'] = pd.to_datetime(df['date'], utc=True)
+    df['date'] = pd.to_datetime(df['date_ts'], utc=True)
     df["duration"] = pd.to_timedelta(df["duration"], unit="s")
 
     return df
@@ -39,21 +38,24 @@ def load_serie_data() -> pd.DataFrame:
     """
     with sqlite3.connect(DB_PATH) as conn:
         df = pd.read_sql(
-            """SELECT s.date AS date, 
+            """SELECT s.date_ts, 
                       s.num AS num,
                       s.reps AS reps,
                       s.weight AS poids,
                       s.reps*s.weight AS volume,
                       e.name AS exercice,
-                      e.muscle_group AS muscle_group
+                      (SELECT muscle_group_id FROM exercice_muscle_group WHERE exercice_id = e.id ORDER BY target LIMIT 1) AS muscle_group
                 FROM series AS s
                 JOIN exercices AS e ON s.exo_id == e.id
                 GROUP BY s.id
-                ORDER BY s.date DESC       
+                ORDER BY s.date_ts DESC       
             """, conn)
     
-    df['muscle_group'] = df['muscle_group'].apply(lambda row: [MuscleGroupDB(id) for id in json.loads(row)])
-    df['date'] = pd.to_datetime(df['date'], utc=True, format='ISO8601')
+    try:
+        df['muscle_group'] = df['muscle_group'].apply(lambda id: MuscleGroupDB(id))
+    except Exception as e:
+        logger.error(f"Error processing muscle_group column: {e}")
+    df['date'] = pd.to_datetime(df['date_ts'], utc=True)
 
     return df
 

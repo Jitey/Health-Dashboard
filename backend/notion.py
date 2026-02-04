@@ -182,12 +182,12 @@ def main():
         remote_url=getenv("TURSO_DATABASE_URL"), 
         auth_token=getenv("TURSO_AUTH_TOKEN")
     )
-    init_db(turso_db.conn)
+    # init_db(turso_db.conn)
     turso_db.sync()
 
     app = NotionAPI(client=client_notion, turso_db=turso_db)
 
-    ic(len(list(app.seances)))
+    # ic(len(list(app.seances)))
 
 
 if __name__=='__main__':

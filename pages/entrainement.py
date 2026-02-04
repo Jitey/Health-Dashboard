@@ -1,12 +1,13 @@
 import streamlit as st
 from datetime import datetime as dt, date, timedelta
 import plotly.graph_objects as go
-from backend.models_db import DB_PATH, SeanceDB
+from backend import SeanceDB, Seance
+from settings import DB_PATH
 import sqlite3
 
 from icecream import ic
 from typing import Generator, Iterable
-from utility.tools import timer_performance
+from utility import timer_performance
 from logs.logger_config import setup_logger
 
 logger = setup_logger()
@@ -120,7 +121,7 @@ def weekly_workouts_volume(week_date: date=date.today()) -> int:
 
         cur.execute("""
             SELECT duration FROM seances
-            WHERE date BETWEEN ? AND ?
+            WHERE date_ts BETWEEN ? AND ?
         """, (start_of_week.isoformat(), end_of_week.isoformat()))
         
         total_seconds = sum([duration for duration, in cur.fetchall()])
