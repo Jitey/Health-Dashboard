@@ -14,4 +14,5 @@ dependencies = [
     "libsql-client==0.3.0",
     "libsql==0.1.11",
     "pyturso==0.4.2",
+    "aiosqlite>=0.22.1",
 ]

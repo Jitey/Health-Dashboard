@@ -1,6 +1,5 @@
 from datetime import datetime as dt, timedelta
-import pandas as pd
-import sqlite3
+from turso.sync import ConnectionSync
 from settings import DB_PATH, logger
 
 
@@ -69,41 +68,40 @@ class Serie():
     def __eq__(self, other):
         return self.exo == other.exo and self.date == other.date and self.num == other.num
         
-    def save_to_db(self) -> None:
-        with sqlite3.connect(DB_PATH) as conn:
-            cur = conn.cursor()
+    def save_to_db(self, connection: ConnectionSync) -> None:
+        cur = connection.cursor()
+    
+        # try:            
+        cur.execute("""
+            INSERT INTO series (id, seance_id, num, exo_id, reps, weight, date_ts)
+            VALUES (:id, :seance_id, :num, :exo_id, :reps, :weight, :date_ts)
+            ON CONFLICT(seance_id, exo_id, num)
+            DO UPDATE SET
+                reps=excluded.reps,
+                weight=excluded.weight,
+                date_ts=excluded.date_ts
+        """, {
+            "id": self.id,
+            "seance_id": self.seance_id,
+            "num": self.num,
+            "exo_id": self.exo.id,
+            "reps": self.reps,
+            "weight": self.poids,
+            "date_ts": self.date.timestamp()
+        })
         
-            try:            
-                cur.execute("""
-                    INSERT INTO series (id, seance_id, num, exo_id, reps, weight, date_ts)
-                    VALUES (:id, :seance_id, :num, :exo_id, :reps, :weight, :date_ts)
-                    ON CONFLICT(seance_id, exo_id, num)
-                    DO UPDATE SET
-                        reps=excluded.reps,
-                        weight=excluded.weight,
-                        date_ts=excluded.date_ts
-                """, {
-                    "id": self.id,
-                    "seance_id": self.seance_id,
-                    "num": self.num,
-                    "exo_id": self.exo.id,
-                    "reps": self.reps,
-                    "weight": self.poids,
-                    "date_ts": self.date.timestamp()
-                })
-                
-                logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} saved.")
-            except sqlite3.ProgrammingError as e:
-                if "parameter 2" in str(e):
-                    raise MissingDataError(f"No seance associated with serie {self.num}: {self.exo.name} - {self.date.date()}. \nError: {e}")
-                else:
-                    raise e
-                
-            except sqlite3.IntegrityError as e:
-                if str(e) == "UNIQUE constraint failed":
-                    logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} already up to date.")
-                else:
-                    raise e
+        logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} saved.")
+        # except sqlite3.ProgrammingError as e:
+        #     if "parameter 2" in str(e):
+        #         raise MissingDataError(f"No seance associated with serie {self.num}: {self.exo.name} - {self.date.date()}. \nError: {e}")
+        #     else:
+        #         raise e
+            
+        # except sqlite3.IntegrityError as e:
+        #     if str(e) == "UNIQUE constraint failed":
+        #         logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} already up to date.")
+        #     else:
+        #         raise e
 
 
 
@@ -126,24 +124,23 @@ class Seance():
     def __repr__(self):
         return f"Seance: {self.name} - Date: {self.date} - ID: {self.id}"
 
-    def save_to_db(self, series_ids: list[str]) -> None:
-        with sqlite3.connect(DB_PATH) as conn:
-            cur = conn.cursor()
+    def save_to_db(self, connection: ConnectionSync) -> None:
+        cur = connection.cursor()
 
-            cur.execute("""
-                INSERT INTO seances (id, name, date_ts, body_part, duration)
-                VALUES (:id, :name, :date_ts, :body_part, :duration)
-                ON CONFLICT(id) DO UPDATE SET
-                    name=excluded.name,
-                    date_ts=excluded.date_ts,
-                    body_part=excluded.body_part,
-                    duration=excluded.duration;
-            """, {
-                "id": self.id,
-                "name": self.name,
-                "date_ts": self.date.timestamp(),
-                "body_part": self.body_part,
-                "duration": self.duration.total_seconds(),
-            })
-            
-            logger.info(f"Seance: {self.name} - {self.date.date()} saved.")
+        cur.execute("""
+            INSERT INTO seances (id, name, date_ts, body_part, duration)
+            VALUES (:id, :name, :date_ts, :body_part, :duration)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                date_ts=excluded.date_ts,
+                body_part=excluded.body_part,
+                duration=excluded.duration;
+        """, {
+            "id": self.id,
+            "name": self.name,
+            "date_ts": self.date.timestamp(),
+            "body_part": self.body_part,
+            "duration": self.duration.total_seconds(),
+        })
+        
+        logger.info(f"Seance: {self.name} - {self.date.date()} saved.")

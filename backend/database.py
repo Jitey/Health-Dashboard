@@ -55,11 +55,13 @@ class UniqueConstraintError(IntegrityError):
 
 class TursoDB():
     def __init__(self, path: str, remote_url: str, auth_token: str) -> None:
+        logger.debug(f"Initializing TursoDB with path: {path}, remote_url: {remote_url}, auth_token: {'***' if auth_token else None}")
         self.conn = turso.sync.connect(path=path, remote_url=remote_url, auth_token=auth_token)
       
     
     @retry
     def sync(self) -> None:
+        logger.debug("Synchronization TursoDB")
         changed = self.conn.pull()
         logger.info(f"Pulled: {changed}")  # True if there were new remote changes
 

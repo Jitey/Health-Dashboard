@@ -62,7 +62,7 @@ def set_error_handler(logger: logging.Logger, log_format: str, date_format: str)
 
 def setup_logger(name="Dasboard") -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     logger.propagate = False
 
     date_format = "%Y-%m-%d %H:%M:%S"
