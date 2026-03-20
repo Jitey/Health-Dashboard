@@ -1,5 +1,6 @@
 # logger_config.py
 import logging
+from logging.handlers import RotatingFileHandler
 
 class ColoredFormatter(logging.Formatter):
     COLORS = {
@@ -38,19 +39,20 @@ def set_consol_handler(logger: logging.Logger, log_format: str, date_format: str
         fmt='\033[90m\033[1m%(asctime)s\033[0m [%(levelname)s]   %(message)s',
         datefmt=date_format
     ))
+    logger.setLevel(logging.DEBUG)
     logger.addHandler(console_handler)
 
 
 
 def set_file_handler(logger: logging.Logger, log_format: str, date_format: str):
-    file_handler = logging.FileHandler("./logs/logs.log")
+    file_handler = RotatingFileHandler("./logs/logs.log", maxBytes=1024*1024, backupCount=5)
     file_handler.setFormatter(FileFormatter(fmt=log_format, datefmt=date_format))
     logger.addHandler(file_handler)
 
 
 
 def set_error_handler(logger: logging.Logger, log_format: str, date_format: str):
-    error_handler = logging.FileHandler("./logs/errors.log")
+    error_handler = RotatingFileHandler("./logs/errors.log", maxBytes=1024*1024, backupCount=5)
     error_handler.setLevel(logging.WARNING)
     error_handler.setFormatter(logging.Formatter(
         fmt="%(asctime)s %(levelname)-8s %(name)s: %(message)s\n\t%(exc_info)s",
@@ -62,7 +64,7 @@ def set_error_handler(logger: logging.Logger, log_format: str, date_format: str)
 
 def setup_logger(name="Dasboard") -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
     logger.propagate = False
 
     date_format = "%Y-%m-%d %H:%M:%S"

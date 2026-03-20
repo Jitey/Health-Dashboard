@@ -1,5 +1,6 @@
 import turso.sync
 from turso import IntegrityError
+from turso.lib import DatabaseError
 import libsql
 from settings import logger
 from typing import Any
@@ -59,11 +60,21 @@ class TursoDB():
         self.conn = turso.sync.connect(path=path, remote_url=remote_url, auth_token=auth_token)
       
     
+    def __del__(self):
+        try:
+            self.conn.close()
+            logger.debug("Connection closed in destructor")
+        except Exception:
+            pass
+    
+    
     @retry
     def sync(self) -> None:
         logger.debug("Synchronization TursoDB")
         changed = self.conn.pull()
         logger.info(f"Pulled: {changed}")  # True if there were new remote changes
+        if not changed:
+            self.conn.push()  # Push local changes if no new remote changes
 
         stats = self.conn.stats()
         logger.info(f"Network received (bytes): {stats.network_received_bytes}")

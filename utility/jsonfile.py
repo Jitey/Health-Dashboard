@@ -1,6 +1,7 @@
-
+from os.path import join as pjoin
 import json
 from logs.logger_config import setup_logger
+from settings import workspace
 
 logger = setup_logger()
 
@@ -52,7 +53,7 @@ class JsonFile:
                 data = data[int(key)] if isinstance(data,list) else data[key]
             except (KeyError, TypeError, IndexError, ValueError) as error:
                 logger.error(f"{error.__class__.__name__} {error}")
-                JsonFile.write(original_data, "error_data")
+                JsonFile.write(original_data, pjoin(workspace, "logs", "error_data"))
                 logger.warning(original_data)
                 logger.warning(dot_chained_keys)
                 logger.warning(key)

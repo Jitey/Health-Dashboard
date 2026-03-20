@@ -27,7 +27,7 @@ class MuscleGroup():
 
 
 class Exercice():
-    def __init__(self, id: str, name: str, muscle_group: list[MuscleGroup]=None, difficulty: str=None) -> None:
+    def __init__(self, id: str, name: str=None, muscle_group: list[MuscleGroup]=None, difficulty: str=None) -> None:
         self.id: str = id
         self.name: str = name
         self.muscle_group = muscle_group
@@ -44,16 +44,75 @@ class Exercice():
 
 
 
+class Seance():
+    def __init__(self, id: str=None, name: str=None, body_part: str=None, date: dt=None, content={}, duration: timedelta=None, rpe: int=None) -> None:
+        self.id: str = id
+        self.name: str = name
+        self.body_part: str = body_part
+        self.date: dt = date
+        self.content: dict[str,list[Serie]] = content
+        self.duration: timedelta = duration
+        self.rpe: int = rpe if rpe is not None else self._compute_rpe()
+ 
+    def _compute_rpe(self) -> int | None:
+        if self.content == {}:
+            return None
+        
+        flat_serie_rpe = [
+            serie.rpe
+            for exo, series in self.content.items() 
+            for serie in series 
+        ]
+        
+        avg_rpe = sum(flat_serie_rpe)/len(flat_serie_rpe)
+        lower_rpe_limit = int(avg_rpe)
+        
+        return lower_rpe_limit + 1 if (avg_rpe % lower_rpe_limit) > 0.5 else lower_rpe_limit
+        
+    def __hash__(self):
+        return hash(self.id)
+            
+    def __str__(self):
+        return f"{self.name} - {self.date}"
+
+    def __repr__(self):
+        return f"Seance: {self.name} - Date: {self.date} - ID: {self.id}"
+
+    def save_to_db(self, connection: ConnectionSync) -> None:
+        logger.debug(f"Saving seance: {self.name} - {self.date.date()}")
+        cur = connection.cursor()
+
+        cur.execute("""
+            INSERT INTO seances (id, name, date_ts, body_part, duration)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                date_ts=excluded.date_ts,
+                body_part=excluded.body_part,
+                duration=excluded.duration;
+        """, [
+            self.id,
+            self.name,
+            self.date.timestamp(),
+            self.body_part,
+            self.duration.total_seconds()
+        ])
+        
+        connection.commit()
+        logger.info(f"Seance: {self.name} - {self.date.date()} saved.")
+
+
 
 class Serie():
-    def __init__(self, id=None, exo: str=None, date: dt=None, num: int=None, reps: int=None, poids: float=None, seance_id: str=None) -> None:
+    def __init__(self, id: str=None, exo: Exercice=None, date: dt=None, num: int=None, reps: int=None, poids: float=None, seance: Seance=None, rpe: int=None) -> None:
         self.id: str = id
         self.exo: Exercice = exo
         self.date: dt = date
         self.num: int = num
         self.reps: int = reps
         self.poids: float = poids
-        self.seance_id: str = seance_id
+        self.seance: Seance = seance
+        self.rpe: int = rpe
     
 
     def __repr__(self):
@@ -74,22 +133,23 @@ class Serie():
         # try:            
         cur.execute("""
             INSERT INTO series (id, seance_id, num, exo_id, reps, weight, date_ts)
-            VALUES (:id, :seance_id, :num, :exo_id, :reps, :weight, :date_ts)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(seance_id, exo_id, num)
             DO UPDATE SET
                 reps=excluded.reps,
                 weight=excluded.weight,
                 date_ts=excluded.date_ts
-        """, {
-            "id": self.id,
-            "seance_id": self.seance_id,
-            "num": self.num,
-            "exo_id": self.exo.id,
-            "reps": self.reps,
-            "weight": self.poids,
-            "date_ts": self.date.timestamp()
-        })
+        """, [
+            self.id,
+            self.seance.id,
+            self.num,
+            self.exo.id,
+            self.reps,
+            self.poids,
+            self.date.timestamp()
+        ])
         
+        connection.commit()
         logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} saved.")
         # except sqlite3.ProgrammingError as e:
         #     if "parameter 2" in str(e):
@@ -102,45 +162,3 @@ class Serie():
         #         logger.info(f"Serie {self.num}: {self.exo.name} - {self.date.date()} already up to date.")
         #     else:
         #         raise e
-
-
-
-class Seance():
-    def __init__(self, id: str=None, name: str=None, body_part: str=None, date: dt=None, content={}, duration: timedelta=None) -> None:
-        self.id: str = id
-        self.name: str = name
-        self.body_part: str = body_part
-        self.date: dt = date
-        self.content: dict[str,list[Serie]] = content
-        self.duration: timedelta = duration
- 
-        
-    def __hash__(self):
-        return hash(self.id)
-            
-    def __str__(self):
-        return f"{self.name} - {self.date}"
-
-    def __repr__(self):
-        return f"Seance: {self.name} - Date: {self.date} - ID: {self.id}"
-
-    def save_to_db(self, connection: ConnectionSync) -> None:
-        cur = connection.cursor()
-
-        cur.execute("""
-            INSERT INTO seances (id, name, date_ts, body_part, duration)
-            VALUES (:id, :name, :date_ts, :body_part, :duration)
-            ON CONFLICT(id) DO UPDATE SET
-                name=excluded.name,
-                date_ts=excluded.date_ts,
-                body_part=excluded.body_part,
-                duration=excluded.duration;
-        """, {
-            "id": self.id,
-            "name": self.name,
-            "date_ts": self.date.timestamp(),
-            "body_part": self.body_part,
-            "duration": self.duration.total_seconds(),
-        })
-        
-        logger.info(f"Seance: {self.name} - {self.date.date()} saved.")
